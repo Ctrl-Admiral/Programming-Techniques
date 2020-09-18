@@ -6,6 +6,8 @@
 - [Background](#background)
     - [Goals of the Style Guide](#goals-of-the-style-guide)
 - [C++ Version](#c-version)
+- [Header Files](#header-files)
+    - [Self-contained Headers](#self-contained-headers)
 
 ---
 ## Background
@@ -53,9 +55,38 @@ Performance optimizations can sometimes be necessary and appropriate, even when 
 The intent of this document is to provide maximal guidance with reasonable restriction. As always, common sense and good taste should prevail. By this we specifically refer to the established conventions of the entire Google C++ community, not just your personal preferences or those of your team. Be skeptical about and reluctant to use clever or unusual constructs: the absence of a prohibition is not the same as a license to proceed. Use your judgment, and if you are unsure, please don't hesitate to ask your project leads to get additional input.
 
 ## C++ Version
-Currently, code should target C++17, i.e., should not use C++2x features. The C++ version targeted by this guide will advance (aggressively) over time.
+Currently, code should target C\++17, i.e., should not use C\++2x features. The C++ version targeted by this guide will advance (aggressively) over time.
 
-Do not use non-standard extensions.
+Do not use [non-standard extensions](#nonstandard-extensions).
 
 Consider portability to other environments before using features from C++14 and C++17 in your project.
 
+## Header Files
+In general, every .cc file should have an associated .h file. There are some common exceptions, such as unit tests and small .cc files containing just a main() function.
+
+Correct use of header files can make a huge difference to the readability, size and performance of your code.
+
+The following rules will guide you through the various pitfalls of using header files.
+
+### Self-contained Headers
+Header files should be self-contained (compile on their own) and end in .h. Non-header files that are meant for inclusion should end in .inc and be used sparingly.
+
+All header files should be self-contained. Users and refactoring tools should not have to adhere to special conditions to include the header. Specifically, a header should have [header guards](#the-define-guard) and include all other headers it needs.
+
+Prefer placing the definitions for template and inline functions in the same file as their declarations. The definitions of these constructs must be included into every .cc file that uses them, or the program may fail to link in some build configurations. If declarations and definitions are in different files, including the former should transitively include the latter. Do not move these definitions to separately included header files (-inl.h); this practice was common in the past, but is no longer allowed.
+
+As an exception, a template that is explicitly instantiated for all relevant sets of template arguments, or that is a private implementation detail of a class, is allowed to be defined in the one and only .cc file that instantiates the template.
+
+There are rare cases where a file designed to be included is not self-contained. These are typically intended to be included at unusual locations, such as the middle of another file. They might not use header guards, and might not include their prerequisites. Name such files with the .inc extension. Use sparingly, and prefer self-contained headers when possible.
+
+### The #define Guard
+All header files should have #define guards to prevent multiple inclusion. The format of the symbol name should be `<PROJECT>\_<PATH>\_<FILE>\_H_`.
+
+To guarantee uniqueness, they should be based on the full path in a project's source tree. For example, the file `foo/src/bar/baz.h` in project foo should have the following guard:
+
+```
+#ifndef FOO_BAR_BAZ_H_
+#define FOO_BAR_BAZ_H_
+...
+#endif  // FOO_BAR_BAZ_H_
+```
