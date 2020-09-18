@@ -11,6 +11,9 @@
     - [The #define Guard](#the-define-guard)
     - [Inline Functions](#inline-functions)
     - [Names and Order of Includes](#names-and-order-of-includes)
+- [Scoping](#scoping)
+    - [Namespaces](#namespaces)
+    - [Unnamed Namespaces and Static Variables](#unnamed-namespaces-and-static-variables)
 
 ---
 ## Background
@@ -194,3 +197,31 @@ Sometimes, system-specific code needs conditional includes. Such code can put co
 #include <initializer_list>
 #endif  // LANG_CXX11
 ```
+
+## Scoping
+### Namespaces
+
+With few exceptions, place code in a namespace. Namespaces should have unique names based on the project name, and possibly its path. Do not use *using-directives* (e.g., `using namespace foo`). Do not use inline namespaces. For unnamed namespaces, see [Unnamed Namespaces and Static Variables](#unnamed-namespaces-and-static-variables).
+
+Namespaces subdivide the global scope into distinct, named scopes, and so are useful for preventing name collisions in the global scope.
+
+Namespaces provide a method for preventing name conflicts in large programs while allowing most code to use reasonably short names.
+
+For example, if two different projects have a class Foo in the global scope, these symbols may collide at compile time or at runtime. If each project places their code in a namespace, project1::Foo and project2::Foo are now distinct symbols that do not collide, and code within each project's namespace can continue to refer to Foo without the prefix.
+
+Inline namespaces automatically place their names in the enclosing scope. Consider the following snippet, for example:
+
+```
+namespace outer {
+inline namespace inner {
+  void foo();
+}  // namespace inner
+}  // namespace outer
+```
+The expressions outer::inner::foo() and outer::foo() are interchangeable. Inline namespaces are primarily intended for ABI compatibility across versions.
+
+Namespaces can be confusing, because they complicate the mechanics of figuring out what definition a name refers to.
+
+Inline namespaces, in particular, can be confusing because names aren't actually restricted to the namespace where they are declared. They are only useful as part of some larger versioning policy.
+
+In some contexts, it's necessary to repeatedly refer to symbols by their fully-qualified names. For deeply-nested namespaces, this can add a lot of clutter.
