@@ -51,3 +51,11 @@ With a codebase of 100+ million lines and thousands of engineers, some mistakes 
 Performance optimizations can sometimes be necessary and appropriate, even when they conflict with the other principles of this document.
 
 The intent of this document is to provide maximal guidance with reasonable restriction. As always, common sense and good taste should prevail. By this we specifically refer to the established conventions of the entire Google C++ community, not just your personal preferences or those of your team. Be skeptical about and reluctant to use clever or unusual constructs: the absence of a prohibition is not the same as a license to proceed. Use your judgment, and if you are unsure, please don't hesitate to ask your project leads to get additional input.
+
+## C++ Version
+Currently, code should target C++17, i.e., should not use C++2x features. The C++ version targeted by this guide will advance (aggressively) over time.
+
+Do not use non-standard extensions.
+
+Consider portability to other environments before using features from C++14 and C++17 in your project.
+
