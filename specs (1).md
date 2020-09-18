@@ -5,7 +5,7 @@
 
 - [Background](#background)
     - [Goals of the Style Guide](#goals-of-the-style-guide)
-- [C++ Version](#c++-version)
+- [C++ Version](#c-version)
 
 ---
 ## Background
