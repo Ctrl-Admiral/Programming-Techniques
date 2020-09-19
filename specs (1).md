@@ -23,6 +23,14 @@
     - [Implicit Conversions](#implicit-conversions)
     - [Copyable and Movable Types](#copyable-and-movable-types)
     - [Struct vs. Classes](#structs-vs-classes)
+    - [Structs vs. Pairs and Tuples](#structs-vs-pairs-and-tuples)
+    - [Operator Overloading](#operator-overloading)
+    - [Access Control](#access-control)
+    - [Declaration Order](#seclaration-order)
+- [Functions](#functions)
+    - [Inputs and Outputs](#inputs-and-outputs)
+    - [Write Short Functions](#write-short-functions)
+    - [Function Overloading](#function-overloading)
 
 ---
 ## Background
@@ -630,7 +638,7 @@ class NotCopyableOrMovable {
 ```
 These declarations/deletions can be omitted only if they are obvious:
 
-- If the class has no `private` section, like a [struct](#struct-vs-classes) or an interface-only base class, then the copyability/movability can be determined by the copyability/movability of any public data members.
+- If the class has no `private` section, like a [struct](#structs-vs-classes) or an interface-only base class, then the copyability/movability can be determined by the copyability/movability of any public data members.
 
 - If a base class clearly isn't copyable or movable, derived classes naturally won't be either. An interface-only base class that leaves these operations implicit is not sufficient to make concrete subclasses clear.
 
@@ -641,14 +649,76 @@ A type should not be copyable/movable if the meaning of copying/moving is unclea
 Due to the risk of slicing, prefer to avoid providing a public assignment operator or copy/move constructor for a class that's intended to be derived from (and prefer to avoid deriving from a class with such members). If your base class needs to be copyable, provide a public virtual `Clone()` method, and a protected copy constructor that derived classes can use to implement it.
 
 ### Structs vs. Classes
-Use a struct only for passive objects that carry data; everything else is a class.
+Use a `struct` only for passive objects that carry data; everything else is a `class`.
 
-The struct and class keywords behave almost identically in C++. We add our own semantic meanings to each keyword, so you should use the appropriate keyword for the data-type you're defining.
+The `struct` and `class` keywords behave almost identically in C++. We add our own semantic meanings to each keyword, so you should use the appropriate keyword for the data-type you're defining.
 
-structs should be used for passive objects that carry data, and may have associated constants. All fields must be public. The struct must not have invariants that imply relationships between different fields, since direct user access to those fields may break those invariants. Constructors, destructors, and helper methods may be present; however, these methods must not require or enforce any invariants.
+`structs` should be used for passive objects that carry data, and may have associated constants. All fields must be public. The struct must not have invariants that imply relationships between different fields, since direct user access to those fields may break those invariants. Constructors, destructors, and helper methods may be present; however, these methods must not require or enforce any invariants.
 
-If more functionality or invariants are required, a class is more appropriate. If in doubt, make it a class.
+If more functionality or invariants are required, a `class` is more appropriate. If in doubt, make it a `class`.
 
-For consistency with STL, you can use struct instead of class for stateless types, such as traits, template metafunctions, and some functors.
+For consistency with STL, you can use `struct` instead of `class` for stateless types, such as traits, [template metafunctions](#template-metaprogramming), and some functors.
 
-Note that member variables in structs and classes have different naming rules.
+Note that member variables in structs and classes have [different naming rules](#variable-names).
+
+### Structs vs. Pairs and Tuples
+Prefer to use a `struct` instead of a pair or a tuple whenever the elements can have meaningful names.
+
+While using pairs and tuples can avoid the need to define a custom type, potentially saving work when *writing* code, a meaningful field name will almost always be much clearer when reading code than `.first`, `.second`, or `std::get<X>`. While C\++14's introduction of `std::get<Type>` to access a tuple element by type rather than index (when the type is unique) can sometimes partially mitigate this, a field name is usually substantially clearer and more informative than a type.
+
+Pairs and tuples may be appropriate in generic code where there are not specific meanings for the elements of the pair or tuple. Their use may also be required in order to interoperate with existing code or APIs.
+
+#### Inheritance
+Composition is often more appropriate than inheritance. When using inheritance, make it `public`.
+
+When a sub-class inherits from a base class, it includes the definitions of all the data and operations that the base class defines. "Interface inheritance" is inheritance from a pure abstract base class (one with no state or defined methods); all other inheritance is "implementation inheritance".
+
+Implementation inheritance reduces code size by re-using the base class code as it specializes an existing type. Because inheritance is a compile-time declaration, you and the compiler can understand the operation and detect errors. Interface inheritance can be used to programmatically enforce that a class expose a particular API. Again, the compiler can detect errors, in this case, when a class does not define a necessary method of the API.
+
+For implementation inheritance, because the code implementing a sub-class is spread between the base and the sub-class, it can be more difficult to understand an implementation. The sub-class cannot override functions that are not virtual, so the sub-class cannot change implementation.
+
+Multiple inheritance is especially problematic, because it often imposes a higher performance overhead (in fact, the performance drop from single inheritance to multiple inheritance can often be greater than the performance drop from ordinary to virtual dispatch), and because it risks leading to "diamond" inheritance patterns, which are prone to ambiguity, confusion, and outright bugs.
+
+All inheritance should be `public`. If you want to do private inheritance, you should be including an instance of the base class as a member instead.
+
+Do not overuse implementation inheritance. Composition is often more appropriate. Try to restrict use of inheritance to the "is-a" case: `Bar` subclasses `Foo` if it can reasonably be said that `Bar` "is a kind of" `Foo`.
+
+Limit the use of `protected` to those member functions that might need to be accessed from subclasses. Note that [data members should be private](#access-control).
+
+Explicitly annotate overrides of virtual functions or virtual destructors with exactly one of an `override` or (less frequently) `final` specifier. Do not use `virtual` when declaring an override. Rationale: A function or destructor marked `override` or `final` that is not an override of a base class virtual function will not compile, and this helps catch common errors. The specifiers serve as documentation; if no specifier is present, the reader has to check all ancestors of the class in question to determine if the function or destructor is virtual or not.
+
+Multiple inheritance is permitted, but multiple *implementation* inheritance is strongly discouraged.
+
+### Operator Overloading
+Overload operators judiciously. Do not use user-defined literals.
+
+C++ permits user code to [declare overloaded versions of the built-in operators](http://en.cppreference.com/w/cpp/language/operators) using the operator keyword, so long as one of the parameters is a user-defined type. The `operator` keyword also permits user code to define new kinds of literals using `operator""`, and to define type-conversion functions such as `operator bool()`.
+
+Operator overloading can make code more concise and intuitive by enabling user-defined types to behave the same as built-in types. Overloaded operators are the idiomatic names for certain operations (e.g., ==, <, =, and <<), and adhering to those conventions can make user-defined types more readable and enable them to interoperate with libraries that expect those names.
+
+User-defined literals are a very concise notation for creating objects of user-defined types.
+
+User-defined literals are a very concise notation for creating objects of user-defined types.
+
+- Providing a correct, consistent, and unsurprising set of operator overloads requires some care, and failure to do so can lead to confusion and bugs.
+- Overuse of operators can lead to obfuscated code, particularly if the overloaded operator's semantics don't follow convention.
+- The hazards of function overloading apply just as much to operator overloading, if not more so.
+- Operator overloads can fool our intuition into thinking that expensive operations are cheap, built-in operations.
+- Finding the call sites for overloaded operators may require a search tool that's aware of C++ syntax, rather than e.g., grep.
+- If you get the argument type of an overloaded operator wrong, you may get a different overload rather than a compiler error. For example, `foo < bar` may do one thing, while `&foo < &bar` does something totally different.
+- Certain operator overloads are inherently hazardous. Overloading unary & can cause the same code to have different meanings depending on whether the overload declaration is visible. Overloads of &&, ||, and , (comma) cannot match the evaluation-order semantics of the built-in operators.
+- Operators are often defined outside the class, so there's a risk of different files introducing different definitions of the same operator. If both definitions are linked into the same binary, this results in undefined behavior, which can manifest as subtle run-time bugs.
+- User-defined literals (UDLs) allow the creation of new syntactic forms that are unfamiliar even to experienced C++ programmers, such as `"Hello World"sv` as a shorthand for `std::string_view("Hello World")`. Existing notations are clearer, though less terse.
+- Because they can't be namespace-qualified, uses of UDLs also require use of either using-directives (which [we ban](#namespaces)) or using-declarations (which [we ban in header files](#aliases) except when the imported names are part of the interface exposed by the header file in question). Given that header files would have to avoid UDL suffixes, we prefer to avoid having conventions for literals differ between header files and source files.
+
+Define overloaded operators only if their meaning is obvious, unsurprising, and consistent with the corresponding built-in operators. For example, use | as a bitwise- or logical-or, not as a shell-style pipe.
+
+Define operators only on your own types. More precisely, define them in the same headers, `.cc` files, and namespaces as the types they operate on. That way, the operators are available wherever the type is, minimizing the risk of multiple definitions. If possible, avoid defining operators as templates, because they must satisfy this rule for any possible template arguments. If you define an operator, also define any related operators that make sense, and make sure they are defined consistently. For example, if you overload <, overload all the comparison operators, and make sure < and > never return true for the same arguments.
+
+Prefer to define non-modifying binary operators as non-member functions. If a binary operator is defined as a class member, implicit conversions will apply to the right-hand argument, but not the left-hand one. It will confuse your users if `a < b` compiles but `b < a` doesn't.
+
+Don't go out of your way to avoid defining operator overloads. For example, prefer to define ==, =, and <<, rather than `Equals()`, `CopyFrom()`, and `PrintTo()`. Conversely, don't define operator overloads just because other libraries expect them. For example, if your type doesn't have a natural ordering, but you want to store it in a `std::set`, use a custom comparator rather than overloading <.
+
+Do not overload &&, ||, , (comma), or unary &. Do not overload `operator""`, i.e., do not introduce user-defined literals. Do not use any such literals provided by others (including the standard library).
+
+Type conversion operators are covered in the section on implicit conversions. The = operator is covered in the section on copy constructors. Overloading << for use with streams is covered in the section on streams. See also the rules on function overloading, which apply to operator overloading as well.
