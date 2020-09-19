@@ -800,7 +800,7 @@ While using pairs and tuples can avoid the need to define a custom type, potenti
 
 Pairs and tuples may be appropriate in generic code where there are not specific meanings for the elements of the pair or tuple. Their use may also be required in order to interoperate with existing code or APIs.
 
-#### Inheritance
+### Inheritance
 Composition is often more appropriate than inheritance. When using inheritance, make it `public`.
 
 ***Definition:***  
@@ -3041,7 +3041,7 @@ It is worth reiterating a few of the guidelines that you might forget if you are
 
 However, there are just a few rules that we occasionally need to break on Windows:
 
-- Normally we [strongly discourage the use of multiple implementation inheritance](#multiple-inheritance); however, it is required when using COM and some ATL/WTL classes. You may use multiple implementation inheritance to implement COM or ATL/WTL classes and interfaces.
+- Normally we [strongly discourage the use of multiple implementation inheritance](#inheritance); however, it is required when using COM and some ATL/WTL classes. You may use multiple implementation inheritance to implement COM or ATL/WTL classes and interfaces.
 
 - Although you should not use exceptions in your own code, they are used extensively in the ATL and some STLs, including the one that comes with Visual C++. When using the ATL, you should define `_ATL_NO_EXCEPTIONS` to disable exceptions. You should investigate whether you can also disable exceptions in your STL, but if not, it is OK to turn on exceptions in the compiler. (Note that this is only to get the STL to compile. You should still not write exception handling code yourself.)
 
