@@ -31,6 +31,11 @@
     - [Inputs and Outputs](#inputs-and-outputs)
     - [Write Short Functions](#write-short-functions)
     - [Function Overloading](#function-overloading)
+    - [Default Arguments](#default-arguments)
+    - [Trailing Return Type Syntax](#trailing-return-type-syntax)
+- [Google-Specific Magic](#google-specific-magic)
+    - [Ownership and Smart Pointers](#ownership-and-smart-pointers)
+    - [cpplint](#cpplint)
 
 ---
 ## Background
@@ -736,3 +741,133 @@ A class definition should usually start with a `public:` section, followed by `p
 Within each section, generally prefer grouping similar kinds of declarations together, and generally prefer the following order: types (including `typedef`, `using`, and nested structs and classes), constants, factory functions, constructors and assignment operators, destructor, all other methods, data members.
 
 Do not put large method definitions inline in the class definition. Usually, only trivial or performance-critical, and very short, methods may be defined inline. See [Inline Functions](#inline-functions) for more details.
+
+## Functions
+### Inputs and Outputs
+The output of a C++ function is naturally provided via a return value and sometimes via output parameters (or in/out parameters).
+
+Prefer using return values over output parameters: they improve readability, and often provide the same or better performance.
+
+Parameters are either input to the function, output from the function, or both. Input parameters should usually be values or const references, while required (non-nullable) output and input/output parameters should usually be references. Generally, use `absl::optional` to represent optional inputs, and non-const pointers to represent optional outputs.
+
+Avoid defining functions that require a `const` reference parameter to outlive the call, because `const` reference parameters bind to temporaries. Instead, find a way to eliminate the lifetime requirement (for example, by copying the parameter), or pass it by `const` pointer and document the non-null requirement.
+
+When ordering function parameters, put all input-only parameters before any output parameters. In particular, do not add new parameters to the end of the function just because they are new; place new input-only parameters before the output parameters. This is not a hard-and-fast rule. Parameters that are both input and output muddy the waters, and, as always, consistency with related functions may require you to bend the rule. Variadic functions may also require unusual parameter ordering.
+
+### Write Short Functions
+Prefer small and focused functions.
+
+We recognize that long functions are sometimes appropriate, so no hard limit is placed on functions length. If a function exceeds about 40 lines, think about whether it can be broken up without harming the structure of the program.
+
+Even if your long function works perfectly now, someone modifying it in a few months may add new behavior. This could result in bugs that are hard to find. Keeping your functions short and simple makes it easier for other people to read and modify your code. Small functions are also easier to test.
+
+You could find long and complicated functions when working with some code. Do not be intimidated by modifying existing code: if working with such a function proves to be difficult, you find that errors are hard to debug, or you want to use a piece of it in several different contexts, consider breaking up the function into smaller and more manageable pieces.
+
+### Function Overloading
+Use overloaded functions (including constructors) only if a reader looking at a call site can get a good idea of what is happening without having to first figure out exactly which overload is being called.
+
+You may write a function that takes a `const std::string&` and overload it with another that takes `const char*`. However, in this case consider `std::string_view` instead.
+```
+class MyClass {
+ public:
+  void Analyze(const std::string &text);
+  void Analyze(const char *text, size_t textlen);
+};
+```
+Overloading can make code more intuitive by allowing an identically-named function to take different arguments. It may be necessary for templatized code, and it can be convenient for Visitors.
+
+Overloading based on const or ref qualification may make utility code more usable, more efficient, or both. (See [TotW 148](http://abseil.io/tips/148) for more.)
+
+If a function is overloaded by the argument types alone, a reader may have to understand C++'s complex matching rules in order to tell what's going on. Also many people are confused by the semantics of inheritance if a derived class overrides only some of the variants of a function.
+
+You may overload a function when there are no semantic differences between variants. These overloads may vary in types, qualifiers, or argument count. However, a reader of such a call must not need to know which member of the overload set is chosen, only that **something** from the set is being called. If you can document all entries in the overload set with a single comment in the header, that is a good sign that it is a well-designed overload set.
+
+### Default Arguments
+Default arguments are allowed on non-virtual functions when the default is guaranteed to always have the same value. Follow the same restrictions as for [function overloading](#function-overloading), and prefer overloaded functions if the readability gained with default arguments doesn't outweigh the downsides below.
+
+Often you have a function that uses default values, but occasionally you want to override the defaults. Default parameters allow an easy way to do this without having to define many functions for the rare exceptions. Compared to overloading the function, default arguments have a cleaner syntax, with less boilerplate and a clearer distinction between 'required' and 'optional' arguments.
+
+Defaulted arguments are another way to achieve the semantics of overloaded functions, so all the [reasons not to overload functions](#function-overloading) apply.
+
+The defaults for arguments in a virtual function call are determined by the static type of the target object, and there's no guarantee that all overrides of a given function declare the same defaults.
+
+Default parameters are re-evaluated at each call site, which can bloat the generated code. Readers may also expect the default's value to be fixed at the declaration instead of varying at each call.
+
+Function pointers are confusing in the presence of default arguments, since the function signature often doesn't match the call signature. Adding function overloads avoids these problems.
+
+Default arguments are banned on virtual functions, where they don't work properly, and in cases where the specified default might not evaluate to the same value depending on when it was evaluated. (For example, don't write `void f(int n = counter++);`.)
+
+In some other cases, default arguments can improve the readability of their function declarations enough to overcome the downsides above, so they are allowed. When in doubt, use overloads.
+
+### Trailing Return Type Syntax
+Use trailing return types only where using the ordinary syntax (leading return types) is impractical or much less readable.
+
+C++ allows two different forms of function declarations. In the older form, the return type appears before the function name. For example:
+```
+int foo(int x);
+```
+The newer form, introduced in C\++11, uses the auto keyword before the function name and a trailing return type after the argument list. For example, the declaration above could equivalently be written:
+```
+auto foo(int x) -> int;
+```
+The trailing return type is in the function's scope. This doesn't make a difference for a simple case like int but it matters for more complicated cases, like types declared in class scope or types written in terms of the function parameters.
+
+Trailing return types are the only way to explicitly specify the return type of a [lambda expression](#lambda-expressions). In some cases the compiler is able to deduce a lambda's return type, but not in all cases. Even when the compiler can deduce it automatically, sometimes specifying it explicitly would be clearer for readers.
+
+Sometimes it's easier and more readable to specify a return type after the function's parameter list has already appeared. This is particularly true when the return type depends on template parameters. For example:
+```
+    template <typename T, typename U>
+    auto add(T t, U u) -> decltype(t + u);
+```  
+versus
+```
+    template <typename T, typename U>
+    decltype(declval<T&>() + declval<U&>()) add(T t, U u);
+```  
+Trailing return type syntax is relatively new and it has no analogue in C++\-like languages such as C and Java, so some readers may find it unfamiliar.
+
+Existing code bases have an enormous number of function declarations that aren't going to get changed to use the new syntax, so the realistic choices are using the old syntax only or using a mixture of the two. Using a single version is better for uniformity of style.
+
+In most cases, continue to use the older style of function declaration where the return type goes before the function name. Use the new trailing-return-type form only in cases where it's required (such as lambdas) or where, by putting the type after the function's parameter list, it allows you to write the type in a much more readable way. The latter case should be rare; it's mostly an issue in fairly complicated template code, which is [discouraged in most cases](#template-metaprogramming).
+
+## Google-Specific Magic
+There are various tricks and utilities that we use to make C++ code more robust, and various ways we use C++ that may differ from what you see elsewhere.
+
+### Ownership and Smart Pointers
+Prefer to have single, fixed owners for dynamically allocated objects. Prefer to transfer ownership with smart pointers.
+
+"Ownership" is a bookkeeping technique for managing dynamically allocated memory (and other resources). The owner of a dynamically allocated object is an object or function that is responsible for ensuring that it is deleted when no longer needed. Ownership can sometimes be shared, in which case the last owner is typically responsible for deleting it. Even when ownership is not shared, it can be transferred from one piece of code to another.
+
+"Smart" pointers are classes that act like pointers, e.g., by overloading the * and -> operators. Some smart pointer types can be used to automate ownership bookkeeping, to ensure these responsibilities are met. [`std::unique_ptr`](http://en.cppreference.com/w/cpp/memory/unique_ptr) is a smart pointer type introduced in C\++11, which expresses exclusive ownership of a dynamically allocated object; the object is deleted when the `std::unique_ptr` goes out of scope. It cannot be copied, but can be moved to represent ownership transfer. [`std::shared_ptr`](http://en.cppreference.com/w/cpp/memory/shared_ptr) is a smart pointer type that expresses shared ownership of a dynamically allocated object. `std::shared_ptr`s can be copied; ownership of the object is shared among all copies, and the object is deleted when the last `std::shared_ptr` is destroyed.
+
+- It's virtually impossible to manage dynamically allocated memory without some sort of ownership logic.
+- Transferring ownership of an object can be cheaper than copying it (if copying it is even possible).
+- Transferring ownership can be simpler than 'borrowing' a pointer or reference, because it reduces the need to coordinate the lifetime of the object between the two users.
+- Smart pointers can improve readability by making ownership logic explicit, self-documenting, and unambiguous.
+- Smart pointers can eliminate manual ownership bookkeeping, simplifying the code and ruling out large classes of errors.
+- For const objects, shared ownership can be a simple and efficient alternative to deep copying.
+- Ownership must be represented and transferred via pointers (whether smart or plain). Pointer semantics are more complicated than value semantics, especially in APIs: you have to worry not just about ownership, but also aliasing, lifetime, and mutability, among other issues.
+- The performance costs of value semantics are often overestimated, so the performance benefits of ownership transfer might not justify the readability and complexity costs.
+- APIs that transfer ownership force their clients into a single memory management model.
+Code using smart pointers is less explicit about where the resource releases take place.
+- `std::unique_ptr` expresses ownership transfer using C\++11's move semantics, which are relatively new and may confuse some programmers.
+- Shared ownership can be a tempting alternative to careful ownership design, obfuscating the design of a system.
+- Shared ownership requires explicit bookkeeping at run-time, which can be costly.
+- In some cases (e.g., cyclic references), objects with shared ownership may never be deleted.
+- Smart pointers are not perfect substitutes for plain pointers.
+
+If dynamic allocation is necessary, prefer to keep ownership with the code that allocated it. If other code needs access to the object, consider passing it a copy, or passing a pointer or reference without transferring ownership. Prefer to use `std::unique_ptr` to make ownership transfer explicit. For example:
+```
+std::unique_ptr<Foo> FooFactory();
+void FooConsumer(std::unique_ptr<Foo> ptr);
+```
+Do not design your code to use shared ownership without a very good reason. One such reason is to avoid expensive copy operations, but you should only do this if the performance benefits are significant, and the underlying object is immutable (i.e., `std::shared_ptr<const Foo>`). If you do use shared ownership, prefer to use `std::shared_ptr`.
+
+Never use `std::auto_ptr`. Instead, use `std::unique_ptr`.
+
+### cpplint
+Use `cpplint.py` to detect style errors.
+
+`cpplint.py` is a tool that reads a source file and identifies many style errors. It is not perfect, and has both false positives and false negatives, but it is still a valuable tool. False positives can be ignored by putting `// NOLINT` at the end of the line or `// NOLINTNEXTLINE` in the previous line.
+
+Some projects have instructions on how to run cpplint.py from their project tools. If the project you are contributing to does not, you can download [`cpplint.py`](https://raw.githubusercontent.com/google/styleguide/gh-pages/cpplint/cpplint.py) separately.
