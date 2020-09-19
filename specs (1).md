@@ -1439,7 +1439,7 @@ Programmers have to understand when type deduction will or won't produce a refer
 
 If a deduced type is used as part of an interface, then a programmer might change its type while only intending to change its value, leading to a more radical API change than intended.
 
-***Decision***  
+***Decision:***  
 The fundamental rule is: use type deduction only to make the code clearer or safer, and do not use it merely to avoid the inconvenience of writing an explicit type. When judging whether the code is clearer, keep in mind that your readers are not necessarily on your team, or familiar with your project, so types that you and your reviewer experience as unnecessary clutter will very often provide useful information to others. For example, you can assume that the return type of `make_unique<Foo>()` is obvious, but the return type of `MyWidgetFactory()` probably isn't.
 
 These principles apply to all forms of type deduction, but the details vary, as described in the following sections.
@@ -1758,3 +1758,107 @@ std::unordered_map<MyKeyType, Value, MyKeyTypeHasher> my_map;
 Consult with the type's owners to see if there is an existing hasher that you can use; otherwise work with them to provide one, or roll your own.
 
 We are planning to provide a hash function that can work with any type, using a new customization mechanism that doesn't have the drawbacks of `std::hash`.
+
+### Other C++ Features
+
+As with [Boost](#boost), some modern C++ extensions encourage coding practices that hamper readability—for example by removing checked redundancy (such as type names) that may be helpful to readers, or by encouraging template metaprogramming. Other extensions duplicate functionality available through existing mechanisms, which may lead to confusion and conversion costs.
+
+***Decision:***  
+In addition to what's described in the rest of the style guide, the following C++ features may not be used:
+
+- Compile-time rational numbers (`<ratio>`), because of concerns that it's tied to a more template-heavy interface style.
+
+- The `<cfenv>` and `<fenv.h>` headers, because many compilers do not support those features reliably.
+
+- The `<filesystem>` header, which does not have sufficient support for testing, and suffers from inherent security vulnerabilities.
+
+### Nonstandard Extensions
+Nonstandard extensions to C++ may not be used unless otherwise specified.
+
+***Definition:***  
+Compilers support various extensions that are not part of standard C++. Such extensions include GCC's `__attribute__`, intrinsic functions such as `__builtin_prefetch`, inline assembly, `__COUNTER__`, `__PRETTY_FUNCTION__`, compound statement expressions (e.g., `foo = ({ int x; Bar(&x); x }`), variable-length arrays and `alloca()`, and the ["Elvis Operator"](https://en.wikipedia.org/wiki/Elvis_operator) `a?:b`.
+
+***Pros:***  
+- Nonstandard extensions may provide useful features that do not exist in standard C++.
+
+- Important performance guidance to the compiler can only be specified using extensions.
+
+***Cons:***  
+- Nonstandard extensions do not work in all compilers. Use of nonstandard extensions reduces portability of code.
+
+- Even if they are supported in all targeted compilers, the extensions are often not well-specified, and there may be subtle behavior differences between compilers.
+
+- Nonstandard extensions add to the language features that a reader must know to understand the code.
+
+***Decision:***  
+Do not use nonstandard extensions. You may use portability wrappers that are implemented using nonstandard extensions, so long as those wrappers are provided by a designated project-wide portability header.
+
+### Aliases
+Public aliases are for the benefit of an API's user, and should be clearly documented.
+
+***Definition:***  
+There are several ways to create names that are aliases of other entities:
+```
+typedef Foo Bar;
+using Bar = Foo;
+using other_namespace::Foo;
+```
+In new code, `using` is preferable to `typedef`, because it provides a more consistent syntax with the rest of C++ and works with templates.
+
+Like other declarations, aliases declared in a header file are part of that header's public API unless they're in a function definition, in the private portion of a class, or in an explicitly-marked internal namespace. Aliases in such areas or in `.cc` files are implementation details (because client code can't refer to them), and are not restricted by this rule.
+
+***Pros:***  
+- Aliases can improve readability by simplifying a long or complicated name.
+
+- Aliases can reduce duplication by naming in one place a type used repeatedly in an API, which might make it easier to change the type later.
+- 
+***Cons:***  
+- When placed in a header where client code can refer to them, aliases increase the number of entities in that header's API, increasing its complexity.
+
+- Clients can easily rely on unintended details of public aliases, making changes difficult.
+
+- It can be tempting to create a public alias that is only intended for use in the implementation, without considering its impact on the API, or on maintainability.
+
+- Aliases can create risk of name collisions
+
+- Aliases can reduce readability by giving a familiar construct an unfamiliar name
+
+- Type aliases can create an unclear API contract: it is unclear whether the alias is guaranteed to be identical to the type it aliases, to have the same API, or only to be usable in specified narrow ways
+
+***Decision:***  
+Don't put an alias in your public API just to save typing in the implementation; do so only if you intend it to be used by your clients.
+
+When defining a public alias, document the intent of the new name, including whether it is guaranteed to always be the same as the type it's currently aliased to, or whether a more limited compatibility is intended. This lets the user know whether they can treat the types as substitutable or whether more specific rules must be followed, and can help the implementation retain some degree of freedom to change the alias.
+
+Don't put namespace aliases in your public API. (See also [Namespaces](#namespaces)).
+
+For example, these aliases document how they are intended to be used in client code:
+```
+namespace mynamespace {
+// Used to store field measurements. DataPoint may change from Bar* to some internal type.
+// Client code should treat it as an opaque pointer.
+using DataPoint = foo::Bar*;
+
+// A set of measurements. Just an alias for user convenience.
+using TimeSeries = std::unordered_set<DataPoint, std::hash<DataPoint>, DataPointComparator>;
+}  // namespace mynamespace
+```
+These aliases don't document intended use, and half of them aren't meant for client use:  
+**Bad code:**
+```
+namespace mynamespace {
+// Bad: none of these say how they should be used.
+using DataPoint = ::foo::Bar*;
+using ::std::unordered_set;  // Bad: just for local convenience
+using ::std::hash;           // Bad: just for local convenience
+typedef unordered_set<DataPoint, hash<DataPoint>, DataPointComparator> TimeSeries;
+}  // namespace mynamespace
+```
+
+However, local convenience aliases are fine in function definitions, private sections of classes, explicitly marked internal namespaces, and in `.cc` files:
+
+```
+// In a .cc file
+using ::foo::Bar;
+```
+
