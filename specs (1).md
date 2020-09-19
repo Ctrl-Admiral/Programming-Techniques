@@ -966,3 +966,66 @@ Our advice against using exceptions is not predicated on philosophical or moral 
 This prohibition also applies to the exception handling related features added in C\++11, such as `std::exception_ptr` and `std::nested_exception`.
 
 There is an [exception](#windows-code) to this rule (no pun intended) for Windows code.
+
+#### noexcept
+Specify `noexcept` when it is useful and correct.
+
+The `noexcept` specifier is used to specify whether a function will throw exceptions or not. If an exception escapes from a function marked `noexcept`, the program crashes via `std::terminate`.
+
+The `noexcept` operator performs a compile-time check that returns true if an expression is declared to not throw any exceptions.
+
+- Specifying move constructors as noexcept improves performance in some cases, e.g., `std::vector<T>::resize()` moves rather than copies the objects if T's move constructor is `noexcept`.
+
+- Specifying `noexcept` on a function can trigger compiler optimizations in environments where exceptions are enabled, e.g., compiler does not have to generate extra code for stack-unwinding, if it knows that no exceptions can be thrown due to a `noexcept` specifier.
+
+- In projects following this guide that have exceptions disabled it is hard to ensure that noexcept specifiers are correct, and hard to define what correctness even means.
+
+- It's hard, if not impossible, to undo `noexcept` because it eliminates a guarantee that callers may be relying on, in ways that are hard to detect.
+
+You may use `noexcept` when it is useful for performance if it accurately reflects the intended semantics of your function, i.e., that if an exception is somehow thrown from within the function body then it represents a fatal error. You can assume that `noexcept` on move constructors has a meaningful performance benefit. If you think there is significant performance benefit from specifying noexcept on some other function, please discuss it with your project leads.
+
+Prefer unconditional `noexcept` if exceptions are completely disabled (i.e., most Google C++ environments). Otherwise, use conditional `noexcept` specifiers with simple conditions, in ways that evaluate false only in the few cases where the function could potentially throw. The tests might include type traits check on whether the involved operation might throw (e.g., `std::is_nothrow_move_constructible` for move-constructing objects), or on whether allocation can throw (e.g., `absl::default_allocator_is_nothrow` for standard default allocation). Note in many cases the only possible cause for an exception is allocation failure (we believe move constructors should not throw except due to allocation failure), and there are many applications where it’s appropriate to treat memory exhaustion as a fatal error rather than an exceptional condition that your program should attempt to recover from. Even for other potential failures you should prioritize interface simplicity over supporting all possible exception throwing scenarios: instead of writing a complicated `noexcept` clause that depends on whether a hash function can throw, for example, simply document that your component doesn’t support hash functions throwing and make it unconditionally `noexcept`.
+
+### Run-Time Type Information (RTTI)
+Avoid using Run Time Type Information (RTTI).
+
+RTTI allows a programmer to query the C++ class of an object at run time. This is done by use of `typeid` or `dynamic_cast`.
+
+The standard alternatives to RTTI (described below) require modification or redesign of the class hierarchy in question. Sometimes such modifications are infeasible or undesirable, particularly in widely-used or mature code.
+
+RTTI can be useful in some unit tests. For example, it is useful in tests of factory classes where the test has to verify that a newly created object has the expected dynamic type. It is also useful in managing the relationship between objects and their mocks.
+
+RTTI is useful when considering multiple abstract objects. Consider
+```
+bool Base::Equal(Base* other) = 0;
+bool Derived::Equal(Base* other) {
+  Derived* that = dynamic_cast<Derived*>(other);
+  if (that == nullptr)
+    return false;
+  ...
+}
+```
+Querying the type of an object at run-time frequently means a design problem. Needing to know the type of an object at runtime is often an indication that the design of your class hierarchy is flawed.
+
+Undisciplined use of RTTI makes code hard to maintain. It can lead to type-based decision trees or switch statements scattered throughout the code, all of which must be examined when making further changes.
+
+RTTI has legitimate uses but is prone to abuse, so you must be careful when using it. You may use it freely in unittests, but avoid it when possible in other code. In particular, think twice before using RTTI in new code. If you find yourself needing to write code that behaves differently based on the class of an object, consider one of the following alternatives to querying the type:
+
+- Virtual methods are the preferred way of executing different code paths depending on a specific subclass type. This puts the work within the object itself.
+
+- If the work belongs outside the object and instead in some processing code, consider a double-dispatch solution, such as the Visitor design pattern. This allows a facility outside the object itself to determine the type of class using the built-in type system.
+
+When the logic of a program guarantees that a given instance of a base class is in fact an instance of a particular derived class, then a `dynamic_cast` may be used freely on the object. Usually one can use a `static_cast` as an alternative in such situations.
+
+Decision trees based on type are a strong indication that your code is on the wrong track.
+```
+if (typeid(*data) == typeid(D1)) {
+  ...
+} else if (typeid(*data) == typeid(D2)) {
+  ...
+} else if (typeid(*data) == typeid(D3)) {
+...
+```
+Code such as this usually breaks when additional subclasses are added to the class hierarchy. Moreover, when properties of a subclass change, it is difficult to find and modify all the affected code segments.
+
+Do not hand-implement an RTTI-like workaround. The arguments against RTTI apply just as much to workarounds like class hierarchies with type tags. Moreover, workarounds disguise your true intent.
