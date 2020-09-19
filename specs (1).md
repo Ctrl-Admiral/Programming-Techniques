@@ -14,6 +14,8 @@
 - [Scoping](#scoping)
     - [Namespaces](#namespaces)
     - [Unnamed Namespaces and Static Variables](#unnamed-namespaces-and-static-variables)
+    - [Nonmember, Static Member, and Global Functions](#nonmember-static-member-and-global-functions)
+    - [Local variables](#local-variables)
 
 ---
 ## Background
@@ -269,3 +271,54 @@ using ::foo::Bar;
 
 }  // namespace mynamespace
 ```
+
+- To place generated protocol message code in a namespace, use the package specifier in the .proto file. See [Protocol Buffer Packages](https://developers.google.com/protocol-buffers/docs/reference/cpp-generated#package) for details.
+- Do not declare anything in namespace std, including forward declarations of standard library classes. Declaring entities in namespace std is undefined behavior, i.e., not portable. To declare entities from the standard library, include the appropriate header file.
+- You may not use a *using-directive* to make all names from a namespace available.
+```
+// Forbidden -- This pollutes the namespace.
+using namespace foo;
+```
+- Do not use *Namespace aliases* at namespace scope in header files except in explicitly marked internal-only namespaces, because anything imported into a namespace in a header file becomes part of the public API exported by that file.
+```
+// Shorten access to some commonly used names in .cc files.
+namespace baz = ::foo::bar::baz;
+// Shorten access to some commonly used names (in a .h file).
+namespace librarian {
+namespace impl {  // Internal, not part of the API.
+namespace sidetable = ::pipeline_diagnostics::sidetable;
+}  // namespace impl
+
+inline void my_inline_function() {
+  // namespace alias local to a function (or method).
+  namespace baz = ::foo::bar::baz;
+  ...
+}
+}  // namespace librarian
+```
+- Do not use inline namespaces.
+
+### Unnamed Namespaces and Static Variables
+When definitions in a `.cc` file do not need to be referenced outside that file, place them in an unnamed namespace or declare them `static`. Do not use either of these constructs in `.h` files.
+
+All declarations can be given internal linkage by placing them in unnamed namespaces. Functions and variables can also be given internal linkage by declaring them `static`. This means that anything you're declaring can't be accessed from another file. If a different file declares something with the same name, then the two entities are completely independent.
+
+Use of internal linkage in `.cc` files is encouraged for all code that does not need to be referenced elsewhere. Do not use internal linkage in `.h` files.
+
+Format unnamed namespaces like named namespaces. In the terminating comment, leave the namespace name empty:
+```
+namespace {
+...
+}  // namespace
+```
+
+### Nonmember, Static Member, and Global Functions
+Prefer placing nonmember functions in a namespace; use completely global functions rarely. Do not use a class simply to group static members. Static methods of a class should generally be closely related to instances of the class or the class's static data.
+
+Nonmember and static member functions can be useful in some situations. Putting nonmember functions in a namespace avoids polluting the global namespace.
+
+Nonmember and static member functions may make more sense as members of a new class, especially if they access external resources or have significant dependencies.
+
+Sometimes it is useful to define a function not bound to a class instance. Such a function can be either a static member or a nonmember function. Nonmember functions should not depend on external variables, and should nearly always exist in a namespace. Do not create classes only to group static members; this is no different than just giving the names a common prefix, and such grouping is usually unnecessary anyway.
+
+If you define a nonmember function and it is only needed in its .cc file, use internal linkage to limit its scope.
