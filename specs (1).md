@@ -56,7 +56,7 @@
     - [Lambda expressions](#lambda-expressions)
     - [Template metaprogramming](#template-metaprogramming)
     - [Boost](#boost)
-    - [std::hash](#std--hash)
+    - [std::hash](#stdhash)
     - [Other C++ Features](#other-c-features)
     - [Nonstandard Extensions](#nonstandard-extensions)
     - [Aliases](#aliases)
