@@ -36,6 +36,31 @@
 - [Google-Specific Magic](#google-specific-magic)
     - [Ownership and Smart Pointers](#ownership-and-smart-pointers)
     - [cpplint](#cpplint)
+- [Other C++ Features](#other-c-features)
+    - [Rvalue References](#rvalue-references)
+    - [Friends](#friends)
+    - [Exceptions](#exceptions)
+    - [Run-Time Type Information (RTTI)](#run-time-type-information-rtti)
+    - [Casting](#casting)
+    - [Streams](#streams)
+    - [Preincrement and Predecrement](#preincrement-and-predecrement)
+    - [Use of const](#use-of-const)
+    - [Use of constexpr](#use-of-constepxr)
+    - [Integer Types](#integer-types)
+    - [64-bit Portability](#64-bit-portability)
+    - [Preprocessor Macros](#preprocessor-macros)
+    - [0 and nullptr/NULL](#0-and-nullptr-null)
+    - [Type deduction](#type-deduction)
+    - [Class template argument deduction](#class-template-argument-deduction)
+    - [Designated initializers](#designated-initializers)
+    - [Lambda expressions](#lambda-expressions)
+    - [Template metaprogramming](#template-metaprogramming)
+    - [Boost](#boost)
+    - [std::hash](#std::hash)
+    - [Other C++ Features](#other-c-features)
+    - [Nonstandard Extensions](#nonstandard-extensions)
+    - [Aliases](#aliases)
+    - 
 
 ---
 ## Background
@@ -871,3 +896,73 @@ Use `cpplint.py` to detect style errors.
 `cpplint.py` is a tool that reads a source file and identifies many style errors. It is not perfect, and has both false positives and false negatives, but it is still a valuable tool. False positives can be ignored by putting `// NOLINT` at the end of the line or `// NOLINTNEXTLINE` in the previous line.
 
 Some projects have instructions on how to run cpplint.py from their project tools. If the project you are contributing to does not, you can download [`cpplint.py`](https://raw.githubusercontent.com/google/styleguide/gh-pages/cpplint/cpplint.py) separately.
+
+## Other C++ Features
+### Rvalue References
+Use rvalue references only in certain special cases listed below.
+
+Rvalue references are a type of reference that can only bind to temporary objects. The syntax is similar to traditional reference syntax. For example, `void f(std::string&& s);` declares a function whose argument is an rvalue reference to a std::string.
+
+When the token '&&' is applied to an unqualified template argument in a function parameter, special template argument deduction rules apply. Such a reference is called forwarding reference.
+
+- Defining a move constructor (a constructor taking an rvalue reference to the class type) makes it possible to move a value instead of copying it. If `v1` is a `std::vector<std::string>`, for example, then `auto v2(std::move(v1))` will probably just result in some simple pointer manipulation instead of copying a large amount of data. In many cases this can result in a major performance improvement.
+
+- Rvalue references make it possible to implement types that are movable but not copyable, which can be useful for types that have no sensible definition of copying but where you might still want to pass them as function arguments, put them in containers, etc.
+
+- `std::move` is necessary to make effective use of some standard-library types, such as `std::unique_ptr`.
+
+- [Forwarding references](#forwarding-references) which use the rvalue reference token, make it possible to write a generic function wrapper that forwards its arguments to another function, and works whether or not its arguments are temporary objects and/or const. This is called 'perfect forwarding'.
+
+- Rvalue references are not yet widely understood. Rules like reference collapsing and the special deduction rule for forwarding references are somewhat obscure.
+
+- Rvalue references are often misused. Using rvalue references is counter-intuitive in signatures where the argument is expected to have a valid specified state after the function call, or where no move operation is performed.
+
+Do not use rvalue references (or apply the && qualifier to methods), except as follows:
+
+- You may use them to define move constructors and move assignment operators (as described in [Copyable and Movable Types](#copyable-and-movable-types).
+
+- You may use them to define &&-qualified methods that logically "consume" `*this`, leaving it in an unusable or empty state. Note that this applies only to method qualifiers (which come after the closing parenthesis of the function signature); if you want to "consume" an ordinary function parameter, prefer to pass it by value.
+
+- You may use forwarding references in conjunction with [`std::forward`](http://en.cppreference.com/w/cpp/utility/forward), to support perfect forwarding.
+
+- You may use them to define pairs of overloads, such as one taking `Foo&&` and the other taking `const Foo&`. Usually the preferred solution is just to pass by value, but an overloaded pair of functions sometimes yields better performance and is sometimes necessary in generic code that needs to support a wide variety of types. As always: if you're writing more complicated code for the sake of performance, make sure you have evidence that it actually helps.
+
+### Friends
+We allow use of `friend` classes and functions, within reason.
+
+Friends should usually be defined in the same file so that the reader does not have to look in another file to find uses of the private members of a class. A common use of `friend` is to have a `FooBuilder` class be a friend of `Foo` so that it can construct the inner state of `Foo` correctly, without exposing this state to the world. In some cases it may be useful to make a unittest class a friend of the class it tests.
+
+Friends extend, but do not break, the encapsulation boundary of a class. In some cases this is better than making a member public when you want to give only one other class access to it. However, most classes should interact with other classes solely through their public members.
+
+### Exceptions
+We do not use C++ exceptions.
+
+- Exceptions allow higher levels of an application to decide how to handle "can't happen" failures in deeply nested functions, without the obscuring and error-prone bookkeeping of error codes.
+
+- Exceptions are used by most other modern languages. Using them in C++ would make it more consistent with Python, Java, and the C++ that others are familiar with.
+
+- Some third-party C++ libraries use exceptions, and turning them off internally makes it harder to integrate with those libraries.
+
+- Exceptions are the only way for a constructor to fail. We can simulate this with a factory function or an `Init()` method, but these require heap allocation or a new "invalid" state, respectively.
+
+- Exceptions are really handy in testing frameworks.
+
+- When you add a `throw` statement to an existing function, you must examine all of its transitive callers. Either they must make at least the basic exception safety guarantee, or they must never catch the exception and be happy with the program terminating as a result. For instance, if `f()` calls `g()` calls `h()`, and h throws an exception that `f` catches, `g` has to be careful or it may not clean up properly.
+
+- More generally, exceptions make the control flow of programs difficult to evaluate by looking at code: functions may return in places you don't expect. This causes maintainability and debugging difficulties. You can minimize this cost via some rules on how and where exceptions can be used, but at the cost of more that a developer needs to know and understand.
+
+- Exception safety requires both RAII and different coding practices. Lots of supporting machinery is needed to make writing correct exception-safe code easy. Further, to avoid requiring readers to understand the entire call graph, exception-safe code must isolate logic that writes to persistent state into a "commit" phase. This will have both benefits and costs (perhaps where you're forced to obfuscate code to isolate the commit). Allowing exceptions would force us to always pay those costs even when they're not worth it.
+
+- Turning on exceptions adds data to each binary produced, increasing compile time (probably slightly) and possibly increasing address space pressure.
+
+- The availability of exceptions may encourage developers to throw them when they are not appropriate or recover from them when it's not safe to do so. For example, invalid user input should not cause exceptions to be thrown. We would need to make the style guide even longer to document these restrictions!
+
+On their face, the benefits of using exceptions outweigh the costs, especially in new projects. However, for existing code, the introduction of exceptions has implications on all dependent code. If exceptions can be propagated beyond a new project, it also becomes problematic to integrate the new project into existing exception-free code. Because most existing C++ code at Google is not prepared to deal with exceptions, it is comparatively difficult to adopt new code that generates exceptions.
+
+Given that Google's existing code is not exception-tolerant, the costs of using exceptions are somewhat greater than the costs in a new project. The conversion process would be slow and error-prone. We don't believe that the available alternatives to exceptions, such as error codes and assertions, introduce a significant burden.
+
+Our advice against using exceptions is not predicated on philosophical or moral grounds, but practical ones. Because we'd like to use our open-source projects at Google and it's difficult to do so if those projects use exceptions, we need to advise against exceptions in Google open-source projects as well. Things would probably be different if we had to do it all over again from scratch.
+
+This prohibition also applies to the exception handling related features added in C\++11, such as `std::exception_ptr` and `std::nested_exception`.
+
+There is an [exception](#windows-code) to this rule (no pun intended) for Windows code.
