@@ -2753,6 +2753,308 @@ if (this_one_thing > this_other_thing &&
 ```
 Note that when the code wraps in this example, both of the `&&` logical AND operators are at the end of the line. This is more common in Google code, though wrapping all operators at the beginning of the line is also allowed. Feel free to insert extra parentheses judiciously because they can be very helpful in increasing readability when used appropriately, but be careful about overuse. Also note that you should always use the punctuation operators, such as `&&` and `~`, rather than the word operators, such as and and compl.
 
-### 
+### Return Values
+Do not needlessly surround the return expression with parentheses.
 
+Use parentheses in return expr; only where you would use them in `x = expr;`.
+```
+return result;                  // No parentheses in the simple case.
+// Parentheses OK to make a complex expression more readable.
+return (some_long_condition &&
+        another_condition);
+```
+**Bad code:**
+```
+return (value);                // You wouldn't write var = (value);
+return(result);                // return is not a function!
+```
+
+### Variable and Array Initialization
+Your choice of `=`, `()`, or `{}`.
+
+You may choose between `=`, `()`, and `{}`; the following are all correct:
+```
+int x = 3;
+int x(3);
+int x{3};
+std::string name = "Some Name";
+std::string name("Some Name");
+std::string name{"Some Name"};
+```
+Be careful when using a braced initialization list `{...}` on a type with an `std::initializer_list` constructor. A nonempty braced-init-list prefers the `std::initializer_list` constructor whenever possible. Note that empty braces `{}` are special, and will call a default constructor if available. To force the non-`std::initializer_list` constructor, use parentheses instead of braces.
+```
+std::vector<int> v(100, 1);  // A vector containing 100 items: All 1s.
+std::vector<int> v{100, 1};  // A vector containing 2 items: 100 and 1.
+```
+Also, the brace form prevents narrowing of integral types. This can prevent some types of programming errors.
+```
+int pi(3.14);  // OK -- pi == 3.
+int pi{3.14};  // Compile error: narrowing conversion.
+```
+
+### Preprocessor Directives
+The hash mark that starts a preprocessor directive should always be at the beginning of the line.
+
+Even when preprocessor directives are within the body of indented code, the directives should start at the beginning of the line.
+```
+// Good - directives at beginning of line
+  if (lopsided_score) {
+#if DISASTER_PENDING      // Correct -- Starts at beginning of line
+    DropEverything();
+# if NOTIFY               // OK but not required -- Spaces after #
+    NotifyClient();
+# endif
+#endif
+    BackToNormal();
+  }
+ ```
+ **Bad code:**
+ ```
+// Bad - indented directives
+  if (lopsided_score) {
+    #if DISASTER_PENDING  // Wrong!  The "#if" should be at beginning of line
+    DropEverything();
+    #endif                // Wrong!  Do not indent "#endif"
+    BackToNormal();
+  }
+```
+
+### Class Format
+Sections in `public`, `protected` and `private` order, each indented one space.
+
+The basic format for a class definition (lacking the comments, see [Class Comments](#class-comments) for a discussion of what comments are needed) is:
+```
+class MyClass : public OtherClass {
+ public:      // Note the 1 space indent!
+  MyClass();  // Regular 2 space indent.
+  explicit MyClass(int var);
+  ~MyClass() {}
+
+  void SomeFunction();
+  void SomeFunctionThatDoesNothing() {
+  }
+
+  void set_some_var(int var) { some_var_ = var; }
+  int some_var() const { return some_var_; }
+
+ private:
+  bool SomeInternalFunction();
+
+  int some_var_;
+  int some_other_var_;
+};
+```
+
+Things to note:
+
+- Any base class name should be on the same line as the subclass name, subject to the 80-column limit.
+
+- The `public:`, `protected:`, and `private:` keywords should be indented one space.
+
+- Except for the first instance, these keywords should be preceded by a blank line. This rule is optional in small classes.
+
+- Do not leave a blank line after these keywords.
+
+- The `public` section should be first, followed by the protected and finally the private section.
+
+- See [Declaration Order](#declaration-order) for rules on ordering declarations within each of these sections.
+
+### Constructor Initializer Lists
+Constructor initializer lists can be all on one line or with subsequent lines indented four spaces.
+
+The acceptable formats for initializer lists are:
+```
+// When everything fits on one line:
+MyClass::MyClass(int var) : some_var_(var) {
+  DoSomething();
+}
+
+// If the signature and initializer list are not all on one line,
+// you must wrap before the colon and indent 4 spaces:
+MyClass::MyClass(int var)
+    : some_var_(var), some_other_var_(var + 1) {
+  DoSomething();
+}
+
+// When the list spans multiple lines, put each member on its own line
+// and align them:
+MyClass::MyClass(int var)
+    : some_var_(var),             // 4 space indent
+      some_other_var_(var + 1) {  // lined up
+  DoSomething();
+}
+
+// As with any other code block, the close curly can be on the same
+// line as the open curly, if it fits.
+MyClass::MyClass(int var)
+    : some_var_(var) {}
+```
+
+
+### Namespace Formatting
+The contents of namespaces are not indented.
+
+[Namespaces](#namespaces) do not add an extra level of indentation. For example, use:
+```
+namespace {
+
+void foo() {  // Correct.  No extra indentation within namespace.
+  ...
+}
+
+}  // namespace
+```
+Do not indent within a namespace:
+**Bad code:**
+```
+namespace {
+
+  // Wrong!  Indented when it should not be.
+  void foo() {
+    ...
+  }
+
+}  // namespace
+```
+
+### Horizontal Whitespace
+Use of horizontal whitespace depends on location. Never put trailing whitespace at the end of a line.
+
+#### General
+```
+void f(bool b) {  // Open braces should always have a space before them.
+  ...
+int i = 0;  // Semicolons usually have no space before them.
+// Spaces inside braces for braced-init-list are optional.  If you use them,
+// put them on both sides!
+int x[] = { 0 };
+int x[] = {0};
+
+// Spaces around the colon in inheritance and initializer lists.
+class Foo : public Bar {
+ public:
+  // For inline function implementations, put spaces between the braces
+  // and the implementation itself.
+  Foo(int b) : Bar(), baz_(b) {}  // No spaces inside empty braces.
+  void Reset() { baz_ = 0; }  // Spaces separating braces from implementation.
+  ...
+```
+Adding trailing whitespace can cause extra work for others editing the same file, when they merge, as can removing existing trailing whitespace. So: Don't introduce trailing whitespace. Remove it if you're already changing that line, or do it in a separate clean-up operation (preferably when no-one else is working on the file).
+
+#### Loops and Conditionals
+```
+if (b) {          // Space after the keyword in conditions and loops.
+} else {          // Spaces around else.
+}
+while (test) {}   // There is usually no space inside parentheses.
+switch (i) {
+for (int i = 0; i < 5; ++i) {
+// Loops and conditions may have spaces inside parentheses, but this
+// is rare.  Be consistent.
+switch ( i ) {
+if ( test ) {
+for ( int i = 0; i < 5; ++i ) {
+// For loops always have a space after the semicolon.  They may have a space
+// before the semicolon, but this is rare.
+for ( ; i < 5 ; ++i) {
+  ...
+
+// Range-based for loops always have a space before and after the colon.
+for (auto x : counts) {
+  ...
+}
+switch (i) {
+  case 1:         // No space before colon in a switch case.
+    ...
+  case 2: break;  // Use a space after a colon if there's code after it.
+```
+
+#### Operators
+```
+// Assignment operators always have spaces around them.
+x = 0;
+
+// Other binary operators usually have spaces around them, but it's
+// OK to remove spaces around factors.  Parentheses should have no
+// internal padding.
+v = w * x + y / z;
+v = w*x + y/z;
+v = w * (x + z);
+
+// No spaces separating unary operators and their arguments.
+x = -5;
+++x;
+if (x && !y)
+  ...
+```
+
+#### Templates and Casts
+```
+// No spaces inside the angle brackets (< and >), before
+// <, or between >( in a cast
+std::vector<std::string> x;
+y = static_cast<char*>(x);
+
+// Spaces between type and pointer are OK, but be consistent.
+std::vector<char *> x;
+```
+
+### Vertical Whitespace
+Minimize use of vertical whitespace.
+
+This is more a principle than a rule: don't use blank lines when you don't have to. In particular, don't put more than one or two blank lines between functions, resist starting functions with a blank line, don't end functions with a blank line, and be sparing with your use of blank lines. A blank line within a block of code serves like a paragraph break in prose: visually separating two thoughts.
+
+The basic principle is: The more code that fits on one screen, the easier it is to follow and understand the control flow of the program. Use whitespace purposefully to provide separation in that flow.
+
+Some rules of thumb to help when blank lines may be useful:
+
+- Blank lines at the beginning or end of a function do not help readability.
+
+- Blank lines inside a chain of if-else blocks may well help readability.
+
+- A blank line before a comment line usually helps readability — the introduction of a new comment suggests the start of a new thought, and the blank line makes it clear that the comment goes with the following thing instead of the preceding.
+
+- Blank lines immediately inside a declaration of a namespace or block of namespaces may help readability by visually separating the load-bearing content from the (largely non-semantic) organizational wrapper. Especially when the first declaration inside the namespace(s) is preceded by a comment, this becomes a special case of the previous rule, helping the comment to "attach" to the subsequent declaration.
+
+## Exceptions to the Rules
+The coding conventions described above are mandatory. However, like all good rules, these sometimes have exceptions, which we discuss here.
+
+### Existing Non-conformant Code
+You may diverge from the rules when dealing with code that does not conform to this style guide.
+
+If you find yourself modifying code that was written to specifications other than those presented by this guide, you may have to diverge from these rules in order to stay consistent with the local conventions in that code. If you are in doubt about how to do this, ask the original author or the person currently responsible for the code. Remember that consistency includes local *consistency*, too.
+
+### Windows Code
+Windows programmers have developed their own set of coding conventions, mainly derived from the conventions in Windows headers and other Microsoft code. We want to make it easy for anyone to understand your code, so we have a single set of guidelines for everyone writing C++ on any platform.
+
+It is worth reiterating a few of the guidelines that you might forget if you are used to the prevalent Windows style:
+
+- Do not use Hungarian notation (for example, naming an integer `iNum`). Use the Google naming conventions, including the `.cc` extension for source files.
+
+- Windows defines many of its own synonyms for primitive types, such as `DWORD`, `HANDLE`, etc. It is perfectly acceptable, and encouraged, that you use these types when calling  Windows API functions. Even so, keep as close as you can to the underlying C++ types. For example, use `const TCHAR *` instead of `LPCTSTR`.
+
+- When compiling with Microsoft Visual C++, set the compiler to warning level 3 or higher, and treat all warnings as errors.
+
+- Do not use `#pragma once`; instead use the standard Google include guards. The path in the include guards should be relative to the top of your project tree.
+
+- In fact, do not use any nonstandard extensions, like `#pragma` and `__declspec`, unless you absolutely must. Using `__declspec(dllimport)` and `__declspec(dllexport)` is allowed; however, you must use them through macros such as `DLLIMPORT` and `DLLEXPORT`, so that someone can easily disable the extensions if they share the code.
+
+However, there are just a few rules that we occasionally need to break on Windows:
+
+- Normally we [strongly discourage the use of multiple implementation inheritance](#multiple-inheritance); however, it is required when using COM and some ATL/WTL classes. You may use multiple implementation inheritance to implement COM or ATL/WTL classes and interfaces.
+
+- Although you should not use exceptions in your own code, they are used extensively in the ATL and some STLs, including the one that comes with Visual C++. When using the ATL, you should define `_ATL_NO_EXCEPTIONS` to disable exceptions. You should investigate whether you can also disable exceptions in your STL, but if not, it is OK to turn on exceptions in the compiler. (Note that this is only to get the STL to compile. You should still not write exception handling code yourself.)
+
+- The usual way of working with precompiled headers is to include a header file at the top of each source file, typically with a name like `StdAfx.h` or `precompile.h`. To make your code easier to share with other projects, avoid including this file explicitly (except in `precompile.cc`), and use the `/FI` compiler option to include the file automatically.
+
+- Resource headers, which are usually named `resource.h` and contain only macros, do not need to conform to these style guidelines.
+
+## Parting Words
+Use common sense and *BE CONSISTENT*.
+
+If you are editing code, take a few minutes to look at the code around you and determine its style. If they use spaces around their if clauses, you should, too. If their comments have little boxes of stars around them, make your comments have little boxes of stars around them too.
+
+The point of having style guidelines is to have a common vocabulary of coding so people can concentrate on what you are saying, rather than on how you are saying it. We present global style rules here so people know the vocabulary. But local style is also important. If code you add to a file looks drastically different from the existing code around it, the discontinuity throws readers out of their rhythm when they go to read it. Try to avoid this.
+
+OK, enough writing about writing code; the code itself is much more interesting. Have fun!
 
