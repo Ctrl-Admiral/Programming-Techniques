@@ -56,11 +56,11 @@
     - [Lambda expressions](#lambda-expressions)
     - [Template metaprogramming](#template-metaprogramming)
     - [Boost](#boost)
-    - [std::hash](#std::hash)
+    - [std::hash](#std--hash)
     - [Other C++ Features](#other-c-features)
     - [Nonstandard Extensions](#nonstandard-extensions)
     - [Aliases](#aliases)
-    - 
+
 
 ---
 ## Background
@@ -1231,7 +1231,7 @@ if (raw_size < sizeof(int)) {
 
 Use type deduction only if it makes the code clearer to readers who aren't familiar with the project, or if it makes the code safer. Do not use it merely to avoid the inconvenience of writing an explicit type.
 
-**Definition**  
+***Definition***  
 There are several contexts in which C++ allows (or even requires) types to be deduced by the compiler, rather than spelled out explicitly in the code:
 
 [Function template argument deduction](https://en.cppreference.com/w/cpp/language/template_argument_deduction)  
@@ -1289,12 +1289,12 @@ The `auto` can also be qualified with `const`, `&`, and `&&`, but note that thes
 
 (These summaries omit many details and caveats; see the links for further information.)
 
-**Pros:**  
+***Pros:***  
 - C++ type names can be long and cumbersome, especially when they involve templates or namespaces.
 - When a C++ type name is repeated within a single declaration or a small code region, the repetition may not be aiding readability.
 - It is sometimes safer to let the type be deduced, since that avoids the possibility of unintended copies or type conversions.
 
-**Cons:**  
+***Cons:***  
 C++ code is usually clearer when types are explicit, especially when type deduction would depend on information from distant parts of the code. In expressions like:
 ```
 auto foo = x.add_foo();
@@ -1306,7 +1306,7 @@ Programmers have to understand when type deduction will or won't produce a refer
 
 If a deduced type is used as part of an interface, then a programmer might change its type while only intending to change its value, leading to a more radical API change than intended.
 
-**Decision**  
+***Decision***  
 The fundamental rule is: use type deduction only to make the code clearer or safer, and do not use it merely to avoid the inconvenience of writing an explicit type. When judging whether the code is clearer, keep in mind that your readers are not necessarily on your team, or familiar with your project, so types that you and your reviewer experience as unnecessary clutter will very often provide useful information to others. For example, you can assume that the return type of `make_unique<Foo>()` is obvious, but the return type of `MyWidgetFactory()` probably isn't.
 
 These principles apply to all forms of type deduction, but the details vary, as described in the following sections.
@@ -1361,7 +1361,7 @@ As with function parameter comments, this can enable tools to detect if you get 
 ### Class template argument deduction
 Use class template argument deduction only with templates that have explicitly opted into supporting it.
 
-**Definition**  
+***Definition***  
 [Class template argument deduction] (often abbreviated "CTAD") occurs when a variable is declared with a type that names a template, and the template argument list is not provided (not even empty angle brackets):
 ```
 std::array a = {1, 2, 3};  // `a` is a std::array<int, 3>
@@ -1379,15 +1379,15 @@ Constructors in a primary template (as opposed to a template specialization) als
 
 When you declare a variable that relies on CTAD, the compiler selects a deduction guide using the rules of constructor overload resolution, and that guide's return type becomes the type of the variable.
 
-**Pros:**  
+***Pros:***  
 CTAD can sometimes allow you to omit boilerplate from your code.
 
-**Cons:**  
+***Cons:***  
 The implicit deduction guides that are generated from constructors may have undesirable behavior, or be outright incorrect. This is particularly problematic for constructors written before CTAD was introduced in C\++17, because the authors of those constructors had no way of knowing about (much less fixing) any problems that their constructors would cause for CTAD. Furthermore, adding explicit deduction guides to fix those problems might break any existing code that relies on the implicit deduction guides.
 
 CTAD also suffers from many of the same drawbacks as auto, because they are both mechanisms for deducing all or part of a variable's type from its initializer. CTAD does give the reader more information than `auto`, but it also doesn't give the reader an obvious cue that information has been omitted.
 
-**Decision:**  
+***Decision:***  
 Do not use CTAD with a given template unless the template's maintainers have opted into supporting use of CTAD by providing at least one explicit deduction guide (all templates in the std namespace are also presumed to have opted in). This should be enforced with a compiler warning if available.
 
 Uses of CTAD must also follow the general rules on [Type deduction](#type-deduction).
@@ -1395,7 +1395,7 @@ Uses of CTAD must also follow the general rules on [Type deduction](#type-deduct
 ### Designated initializers
 Use designated initializers only in their C\++20-compliant form.
 
-**Definition:**  
+***Definition:***  
 [Designated initializers](https://en.cppreference.com/w/cpp/language/aggregate_initialization#Designated_initializers) are a syntax that allows for initializing an aggregate ("plain old struct") by naming its fields explicitly:
 ```
   struct Point {
@@ -1412,21 +1412,21 @@ Use designated initializers only in their C\++20-compliant form.
 ```
 The explicitly listed fields will be initialized as specified, and others will be initialized in the same way they would be in a traditional aggregate initialization expression like `Point{1.0, 2.0}`.
 
-**Pros:**  
+***Pros:***  
 Designated initializers can make for convenient and highly readable aggregate expressions, especially for structs with less straightforward ordering of fields than the Point example above.
 
-**Cons:**
+***Cons:***
 While designated initializers have long been part of the C standard and supported by C++ compilers as an extension, only recently have they made it into the draft C++ standard. They are on track for publishing in C\++20.
 
 The rules in the draft C++ standard are stricter than in C and compiler extensions, requiring that the designated initializers appear in the same order as the fields appear in the struct definition. So in the example above it is legal according to draft C\++20 to initialize `x` and then `z`, but not `y` and then `x`.
 
-**Decision:**
+***Decision:***
 Use designated initializers only in the form that is compatible with the draft C\++20 standard: with initializers in the same order as the corresponding fields appear in the struct definition.
 
 ### Lambda expressions
 Use lambda expressions where appropriate. Prefer explicit captures when the lambda will escape the current scope.
 
-**Definition:**  
+***Definition:***  
 Lambda expressions are a concise way of creating anonymous function objects. They're often useful when passing functions as arguments. For example:
 ```
 std::sort(v.begin(), v.end(), [](int x, int y) {
@@ -1468,14 +1468,14 @@ Such captures (often called "init captures" or "generalized lambda captures") ne
 ```
 The type of a capture with an initializer is deduced using the same rules as `auto`.
 
-**Pros:**
+***Pros:***
 - Lambdas are much more concise than other ways of defining function objects to be passed to STL algorithms, which can be a readability improvement.
 
 - Appropriate use of default captures can remove redundancy and highlight important exceptions from the default.
 
 - Lambdas, `std::function`, and `std::bind` can be used in combination as a general purpose callback mechanism; they make it easy to write functions that take bound functions as arguments.
 
-**Cons:**  
+***Cons:***  
 - Variable capture in lambdas can be a source of dangling-pointer bugs, particularly if a lambda escapes the current scope.
 
 - Default captures by value can be misleading because they do not prevent dangling-pointer bugs. Capturing a pointer by value doesn't cause a deep copy, so it often has the same lifetime issues as capture by reference. This is especially confusing when capturing 'this' by value, since the use of 'this' is often implicit.
@@ -1528,20 +1528,20 @@ The type of a capture with an initializer is deduced using the same rules as `au
 ### Template metaprogramming
 Avoid complicated template programming.
 
-**Definition:**  
+***Definition:***  
 Template metaprogramming refers to a family of techniques that exploit the fact that the C++ template instantiation mechanism is Turing complete and can be used to perform arbitrary compile-time computation in the type domain.
 
-**Pros:**  
+***Pros:***  
 Template metaprogramming allows extremely flexible interfaces that are type safe and high performance. Facilities like [Google Test](https://code.google.com/p/googletest/), `std::tuple`, `std::function`, and Boost.Spirit would be impossible without it.
 
-**Cons:**  
+***Cons:***  
 The techniques used in template metaprogramming are often obscure to anyone but language experts. Code that uses templates in complicated ways is often unreadable, and is hard to debug or maintain.
 
 Template metaprogramming often leads to extremely poor compile time error messages: even if an interface is simple, the complicated implementation details become visible when the user does something wrong.
 
 Template metaprogramming interferes with large scale refactoring by making the job of refactoring tools harder. First, the template code is expanded in multiple contexts, and it's hard to verify that the transformation makes sense in all of them. Second, some refactoring tools work with an AST that only represents the structure of the code after template expansion. It can be difficult to automatically work back to the original source construct that needs to be rewritten.
 
-**Decision:**  
+***Decision:***  
 Template metaprogramming sometimes allows cleaner and easier-to-use interfaces than would be possible without it, but it's also often a temptation to be overly clever. It's best used in a small number of low level components where the extra maintenance burden is spread out over a large number of uses.
 
 Think twice before using template metaprogramming or other complicated template techniques; think about whether the average member of your team will be able to understand your code well enough to maintain it after you switch to another project, or whether a non-C++ programmer or someone casually browsing the code base will be able to understand the error messages or trace the flow of a function they want to call. If you're using recursive template instantiations or type lists or metafunctions or expression templates, or relying on SFINAE or on the sizeof trick for detecting function overload resolution, then there's a good chance you've gone too far.
@@ -1551,16 +1551,16 @@ If you use template metaprogramming, you should expect to put considerable effor
 ### Boost
 Use only approved libraries from the Boost library collection.
 
-**Definition:**  
+***Definition:***  
 The [Boost library collection](https://www.boost.org/) is a popular collection of peer-reviewed, free, open-source C++ libraries.
 
-**Pros:**  
+***Pros:***  
 Boost code is generally very high-quality, is widely portable, and fills many important gaps in the C++ standard library, such as type traits and better binders.
 
-**Cons:**  
+***Cons:***  
 Some Boost libraries encourage coding practices which can hamper readability, such as metaprogramming and other advanced template techniques, and an excessively "functional" style of programming.
 
-**Decision:**  
+***Decision:***  
 In order to maintain a high level of readability for all contributors who might read and maintain code, we only allow an approved subset of Boost features. Currently, the following libraries are permitted:
 
 - [Call Traits](https://www.boost.org/libs/utility/call_traits.htm) from `boost/call_traits.hpp`
@@ -1600,22 +1600,22 @@ We are actively considering adding other Boost features to the list, so this lis
 ### std::hash
 Do not define specializations of `std::hash`.
 
-**Definition:**  
+***Definition:***  
 `std::hash<T>` is the function object that the C\++11 hash containers use to hash keys of type T, unless the user explicitly specifies a different hash function. For example, `std::unordered_map<int, std::string>` is a hash map that uses `std::hash<int>` to hash its keys, whereas `std::unordered_map<int, std::string, MyIntHash>` uses `MyIntHash`.
 
 `std::hash` is defined for all integral, floating-point, pointer, and enum types, as well as some standard library types such as `string` and `unique_ptr`. Users can enable it to work for their own types by defining specializations of it for those types.
 
-**Pros:**  
+***Pros:***  
 `std::hash` is easy to use, and simplifies the code since you don't have to name it explicitly. Specializing std::hash is the standard way of specifying how to hash a type, so it's what outside resources will teach, and what new engineers will expect.
 
-**Cons:**  
+***Cons:***  
 `std::hash` is hard to specialize. It requires a lot of boilerplate code, and more importantly, it combines responsibility for identifying the hash inputs with responsibility for executing the hashing algorithm itself. The type author has to be responsible for the former, but the latter requires expertise that a type author usually doesn't have, and shouldn't need. The stakes here are high because low-quality hash functions can be security vulnerabilities, due to the emergence of [hash flooding attacks](https://emboss.github.io/blog/2012/12/14/breaking-murmur-hash-flooding-dos-reloaded/).
 
 Even for experts, `std::hash` specializations are inordinately difficult to implement correctly for compound types, because the implementation cannot recursively call `std::hash` on data members. High-quality hash algorithms maintain large amounts of internal state, and reducing that state to the `size_t` bytes that `std::hash` returns is usually the slowest part of the computation, so it should not be done more than once.
 
 Due to exactly that issue, `std::hash` does not work with `std::pair` or `std::tuple`, and the language does not allow us to extend it to support them.
 
-**Decision:**  
+***Decision:***  
 You can use `std::hash` with the types that it supports "out of the box", but do not specialize it to support additional types. If you need a hash table with a key type that `std::hash` does not support, consider using legacy hash containers (e.g., `hash_map`) for now; they use a different default hasher, which is unaffected by this prohibition.
 
 If you want to use the standard hash containers anyway, you will need to specify a custom hasher for the key type, e.g.,
