@@ -1486,7 +1486,7 @@ The type of a capture with an initializer is deduced using the same rules as `au
 
 - It's possible for use of lambdas to get out of hand; very long nested anonymous functions can make code harder to understand.
 
-**Decision:**  
+***Decision:***  
 - Use lambda expressions where appropriate, with formatting as described [below](#formatting-lambda-expressions).
 
 - Prefer explicit captures if the lambda may escape the current scope. For example, instead of:
