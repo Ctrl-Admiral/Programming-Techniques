@@ -1233,3 +1233,11 @@ Use type deduction only if it makes the code clearer to readers who aren't famil
 
 **Definition**  
 There are several contexts in which C++ allows (or even requires) types to be deduced by the compiler, rather than spelled out explicitly in the code:
+
+[Function template argument deduction](https://en.cppreference.com/w/cpp/language/template_argument_deduction)
+    A function template can be invoked without explicit template arguments. The compiler deduces those arguments from the types of the function arguments:
+   
+    template <typename T>
+    void f(T t);
+    f(0);  // Invokes f<int>(0)
+    
