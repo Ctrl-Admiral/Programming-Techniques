@@ -1235,9 +1235,393 @@ Use type deduction only if it makes the code clearer to readers who aren't famil
 There are several contexts in which C++ allows (or even requires) types to be deduced by the compiler, rather than spelled out explicitly in the code:
 
 [Function template argument deduction](https://en.cppreference.com/w/cpp/language/template_argument_deduction)  
-    A function template can be invoked without explicit template arguments. The compiler deduces those arguments from the types of the function arguments:
-   
+A function template can be invoked without explicit template arguments. The compiler deduces those arguments from the types of the function arguments:
+ 
     template <typename T>
     void f(T t);
     f(0);  // Invokes f<int>(0)
     
+[`auto` variable declarations](https://en.cppreference.com/w/cpp/language/auto)  
+A variable declaration can use the auto keyword in place of the type. The compiler deduces the type from the variable's initializer, following the same rules as function template argument deduction with the same initializer (so long as you don't use curly braces instead of parentheses).
+```
+auto a = 42;  // a is an int
+auto& b = a;  // b is an int&
+auto c = b;   // c is an int
+auto d{42};   // d is an int, not a std::initializer_list<int>
+```
+
+`auto` can be qualified with const, and can be used as part of a pointer or reference type, but it can't be used as a template argument. A rare variant of this syntax uses `decltype(auto)` instead of `auto`, in which case the deduced type is the result of applying [`decltype`](https://en.cppreference.com/w/cpp/language/decltype) to the initializer.
+
+[Function return type deduction](https://en.cppreference.com/w/cpp/language/function#Return_type_deduction)  
+`auto` (and `decltype(auto)`) can also be used in place of a function return type. The compiler deduces the return type from the return statements in the function body, following the same rules as for variable declarations:
+```
+auto f() { return 0; }  // The return type of f is int
+```
+[Lambda expression](#lambda-expressions) return types can be deduced in the same way, but this is triggered by omitting the return type, rather than by an explicit `auto`. Confusingly, [trailing return type](#trailing-return) syntax for functions also uses `auto` in the return-type position, but that doesn't rely on type deduction; it's just an alternate syntax for an explicit return type.
+
+[Generic lambdas](https://isocpp.org/wiki/faq/cpp14-language#generic-lambdas)  
+A lambda expression can use the auto keyword in place of one or more of its parameter types. This causes the lambda's call operator to be a function template instead of an ordinary function, with a separate template parameter for each auto function parameter:
+```
+// Sort `vec` in decreasing order
+std::sort(vec.begin(), vec.end(), [](auto lhs, auto rhs) { return lhs > rhs; });
+```
+
+[Lambda init captures](https://isocpp.org/wiki/faq/cpp14-language#lambda-captures)  
+Lambda captures can have explicit initializers, which can be used to declare wholly new variables rather than only capturing existing ones:
+```
+[x = 42, y = "foo"] { ... }  // x is an int, and y is a const char*
+```
+This syntax doesn't allow the type to be specified; instead, it's deduced using the rules for auto variables.
+
+[Class template argument deduction](https://en.cppreference.com/w/cpp/language/class_template_argument_deduction)  
+See [below](#class-template-argument-deduction).
+
+[Structured bindings](https://en.cppreference.com/w/cpp/language/structured_binding)  
+When declaring a tuple, struct, or array using `auto`, you can specify names for the individual elements instead of a name for the whole object; these names are called "structured bindings", and the whole declaration is called a "structured binding declaration". This syntax provides no way of specifying the type of either the enclosing object or the individual names:
+```
+auto [iter, success] = my_map.insert({key, value});
+if (!success) {
+  iter->second = value;
+}
+```
+The `auto` can also be qualified with `const`, `&`, and `&&`, but note that these qualifiers technically apply to the anonymous tuple/struct/array, rather than the individual bindings. The rules that determine the types of the bindings are quite complex; the results tend to be unsurprising, except that the binding types typically won't be references even if the declaration declares a reference (but they will usually behave like references anyway).
+
+
+(These summaries omit many details and caveats; see the links for further information.)
+
+**Pros:**  
+- C++ type names can be long and cumbersome, especially when they involve templates or namespaces.
+- When a C++ type name is repeated within a single declaration or a small code region, the repetition may not be aiding readability.
+- It is sometimes safer to let the type be deduced, since that avoids the possibility of unintended copies or type conversions.
+
+**Cons:**  
+C++ code is usually clearer when types are explicit, especially when type deduction would depend on information from distant parts of the code. In expressions like:
+```
+auto foo = x.add_foo();
+auto i = y.Find(key);
+```
+it may not be obvious what the resulting types are if the type of y isn't very well known, or if y was declared many lines earlier.
+
+Programmers have to understand when type deduction will or won't produce a reference type, or they'll get copies when they didn't mean to.
+
+If a deduced type is used as part of an interface, then a programmer might change its type while only intending to change its value, leading to a more radical API change than intended.
+
+**Decision**  
+The fundamental rule is: use type deduction only to make the code clearer or safer, and do not use it merely to avoid the inconvenience of writing an explicit type. When judging whether the code is clearer, keep in mind that your readers are not necessarily on your team, or familiar with your project, so types that you and your reviewer experience as unnecessary clutter will very often provide useful information to others. For example, you can assume that the return type of `make_unique<Foo>()` is obvious, but the return type of `MyWidgetFactory()` probably isn't.
+
+These principles apply to all forms of type deduction, but the details vary, as described in the following sections.
+
+#### Function template argument deduction
+Function template argument deduction is almost always OK. Type deduction is the expected default way of interacting with function templates, because it allows function templates to act like infinite sets of ordinary function overloads. Consequently, function templates are almost always designed so that template argument deduction is clear and safe, or doesn't compile.
+
+#### Local variable type deduction
+For local variables, you can use type deduction to make the code clearer by eliminating type information that is obvious or irrelevant, so that the reader can focus on the meaningful parts of the code:
+```
+std::unique_ptr<WidgetWithBellsAndWhistles> widget_ptr =
+    absl::make_unique<WidgetWithBellsAndWhistles>(arg1, arg2);
+absl::flat_hash_map<std::string,
+                    std::unique_ptr<WidgetWithBellsAndWhistles>>::const_iterator
+    it = my_map_.find(key);
+std::array<int, 6> numbers = {4, 8, 15, 16, 23, 42};
+```
+```
+auto widget_ptr = absl::make_unique<WidgetWithBellsAndWhistles>(arg1, arg2);
+auto it = my_map_.find(key);
+std::array numbers = {4, 8, 15, 16, 23, 42};
+```
+Types sometimes contain a mixture of useful information and boilerplate, such as it in the example above: it's obvious that the type is an iterator, and in many contexts the container type and even the key type aren't relevant, but the type of the values is probably useful. In such situations, it's often possible to define local variables with explicit types that convey the relevant information:
+```
+auto it = my_map_.find(key);
+if (it != my_map_.end()) {
+  WidgetWithBellsAndWhistles& widget = *it->second;
+  // Do stuff with `widget`
+}
+```
+If the type is a template instance, and the parameters are boilerplate but the template itself is informative, you can use class template argument deduction to suppress the boilerplate. However, cases where this actually provides a meaningful benefit are quite rare. Note that class template argument deduction is also subject to a separate style rule.
+Do not use `decltype(auto)` if a simpler option will work, because it's a fairly obscure feature, so it has a high cost in code clarity.
+
+#### Return type deduction
+Use return type deduction (for both functions and lambdas) only if the function body has a very small number of return statements, and very little other code, because otherwise the reader may not be able to tell at a glance what the return type is. Furthermore, use it only if the function or lambda has a very narrow scope, because functions with deduced return types don't define abstraction boundaries: the implementation is the interface. In particular, public functions in header files should almost never have deduced return types.
+
+#### Parameter type deduction
+`auto` parameter types for lambdas should be used with caution, because the actual type is determined by the code that calls the lambda, rather than by the definition of the lambda. Consequently, an explicit type will almost always be clearer unless the lambda is explicitly called very close to where it's defined (so that the reader can easily see both), or the lambda is passed to an interface so well-known that it's obvious what arguments it will eventually be called with (e.g., the `std::sort` example above).
+
+#### Lambda init captures
+Init captures are covered by a [more specific style rule](#lambda-expressions), which largely supersedes the general rules for type deduction.
+
+#### Structured bindings
+Unlike other forms of type deduction, structured bindings can actually give the reader additional information, by giving meaningful names to the elements of a larger object. This means that a structured binding declaration may provide a net readability improvement over an explicit type, even in cases where `auto` would not. Structured bindings are especially beneficial when the object is a pair or tuple (as in the `insert` example above), because they don't have meaningful field names to begin with, but note that you generally [shouldn't use pairs or tuples](#structs-vs-pairs-and-tuples) unless a pre-existing API like insert forces you to.
+
+If the object being bound is a struct, it may sometimes be helpful to provide names that are more specific to your usage, but keep in mind that this may also mean the names are less recognizable to your reader than the field names. We recommend using a comment to indicate the name of the underlying field, if it doesn't match the name of the binding, using the same syntax as for function parameter comments:
+```
+auto [/*field_name1=*/ bound_name1, /*field_name2=*/ bound_name2] = ...
+```
+As with function parameter comments, this can enable tools to detect if you get the order of the fields wrong.
+
+### Class template argument deduction
+Use class template argument deduction only with templates that have explicitly opted into supporting it.
+
+**Definition**  
+[Class template argument deduction] (often abbreviated "CTAD") occurs when a variable is declared with a type that names a template, and the template argument list is not provided (not even empty angle brackets):
+```
+std::array a = {1, 2, 3};  // `a` is a std::array<int, 3>
+```
+The compiler deduces the arguments from the initializer using the template's "deduction guides", which can be explicit or implicit.
+
+Explicit deduction guides look like function declarations with trailing return types, except that there's no leading `auto`, and the function name is the name of the template. For example, the above example relies on this deduction guide for `std::array`:
+```
+namespace std {
+template <class T, class... U>
+array(T, U...) -> std::array<T, 1 + sizeof...(U)>;
+}
+```
+Constructors in a primary template (as opposed to a template specialization) also implicitly define deduction guides.
+
+When you declare a variable that relies on CTAD, the compiler selects a deduction guide using the rules of constructor overload resolution, and that guide's return type becomes the type of the variable.
+
+**Pros:**  
+CTAD can sometimes allow you to omit boilerplate from your code.
+
+**Cons:**  
+The implicit deduction guides that are generated from constructors may have undesirable behavior, or be outright incorrect. This is particularly problematic for constructors written before CTAD was introduced in C\++17, because the authors of those constructors had no way of knowing about (much less fixing) any problems that their constructors would cause for CTAD. Furthermore, adding explicit deduction guides to fix those problems might break any existing code that relies on the implicit deduction guides.
+
+CTAD also suffers from many of the same drawbacks as auto, because they are both mechanisms for deducing all or part of a variable's type from its initializer. CTAD does give the reader more information than `auto`, but it also doesn't give the reader an obvious cue that information has been omitted.
+
+**Decision:**  
+Do not use CTAD with a given template unless the template's maintainers have opted into supporting use of CTAD by providing at least one explicit deduction guide (all templates in the std namespace are also presumed to have opted in). This should be enforced with a compiler warning if available.
+
+Uses of CTAD must also follow the general rules on [Type deduction](#type-deduction).
+
+### Designated initializers
+Use designated initializers only in their C\++20-compliant form.
+
+**Definition:**  
+[Designated initializers](https://en.cppreference.com/w/cpp/language/aggregate_initialization#Designated_initializers) are a syntax that allows for initializing an aggregate ("plain old struct") by naming its fields explicitly:
+```
+  struct Point {
+    float x = 0.0;
+    float y = 0.0;
+    float z = 0.0;
+  };
+
+  Point p = {
+    .x = 1.0,
+    .y = 2.0,
+    // z will be 0.0
+  };
+```
+The explicitly listed fields will be initialized as specified, and others will be initialized in the same way they would be in a traditional aggregate initialization expression like `Point{1.0, 2.0}`.
+
+**Pros:**  
+Designated initializers can make for convenient and highly readable aggregate expressions, especially for structs with less straightforward ordering of fields than the Point example above.
+
+**Cons:**
+While designated initializers have long been part of the C standard and supported by C++ compilers as an extension, only recently have they made it into the draft C++ standard. They are on track for publishing in C\++20.
+
+The rules in the draft C++ standard are stricter than in C and compiler extensions, requiring that the designated initializers appear in the same order as the fields appear in the struct definition. So in the example above it is legal according to draft C\++20 to initialize `x` and then `z`, but not `y` and then `x`.
+
+**Decision:**
+Use designated initializers only in the form that is compatible with the draft C\++20 standard: with initializers in the same order as the corresponding fields appear in the struct definition.
+
+### Lambda expressions
+Use lambda expressions where appropriate. Prefer explicit captures when the lambda will escape the current scope.
+
+**Definition:**  
+Lambda expressions are a concise way of creating anonymous function objects. They're often useful when passing functions as arguments. For example:
+```
+std::sort(v.begin(), v.end(), [](int x, int y) {
+  return Weight(x) < Weight(y);
+});
+```
+They further allow capturing variables from the enclosing scope either explicitly by name, or implicitly using a default capture. Explicit captures require each variable to be listed, as either a value or reference capture:
+```
+int weight = 3;
+int sum = 0;
+// Captures `weight` by value and `sum` by reference.
+std::for_each(v.begin(), v.end(), [weight, &sum](int x) {
+  sum += weight * x;
+});
+```
+Default captures implicitly capture any variable referenced in the lambda body, including this if any members are used:
+```
+const std::vector<int> lookup_table = ...;
+std::vector<int> indices = ...;
+// Captures `lookup_table` by reference, sorts `indices` by the value
+// of the associated element in `lookup_table`.
+std::sort(indices.begin(), indices.end(), [&](int a, int b) {
+  return lookup_table[a] < lookup_table[b];
+});
+```
+
+A variable capture can also have an explicit initializer, which can be used for capturing move-only variables by value, or for other situations not handled by ordinary reference or value captures:
+```
+std::unique_ptr<Foo> foo = ...;
+[foo = std::move(foo)] () {
+  ...
+}
+```
+Such captures (often called "init captures" or "generalized lambda captures") need not actually "capture" anything from the enclosing scope, or even have a name from the enclosing scope; this syntax is a fully general way to define members of a lambda object:
+```
+[foo = std::vector<int>({1, 2, 3})] () {
+  ...
+}
+```
+The type of a capture with an initializer is deduced using the same rules as `auto`.
+
+**Pros:**
+- Lambdas are much more concise than other ways of defining function objects to be passed to STL algorithms, which can be a readability improvement.
+
+- Appropriate use of default captures can remove redundancy and highlight important exceptions from the default.
+
+- Lambdas, `std::function`, and `std::bind` can be used in combination as a general purpose callback mechanism; they make it easy to write functions that take bound functions as arguments.
+
+**Cons:**  
+- Variable capture in lambdas can be a source of dangling-pointer bugs, particularly if a lambda escapes the current scope.
+
+- Default captures by value can be misleading because they do not prevent dangling-pointer bugs. Capturing a pointer by value doesn't cause a deep copy, so it often has the same lifetime issues as capture by reference. This is especially confusing when capturing 'this' by value, since the use of 'this' is often implicit.
+
+- Captures actually declare new variables (whether or not the captures have initializers), but they look nothing like any other variable declaration syntax in C++. In particular, there's no place for the variable's type, or even an `auto` placeholder (although init captures can indicate it indirectly, e.g., with a cast). This can make it difficult to even recognize them as declarations.
+
+- Init captures inherently rely on [type deduction](#type-deduction), and suffer from many of the same drawbacks as auto, with the additional problem that the syntax doesn't even cue the reader that deduction is taking place.
+
+- It's possible for use of lambdas to get out of hand; very long nested anonymous functions can make code harder to understand.
+
+**Decision:**  
+- Use lambda expressions where appropriate, with formatting as described [below](#formatting-lambda-expressions).
+
+- Prefer explicit captures if the lambda may escape the current scope. For example, instead of:
+**Bad code**
+    ```
+    {
+      Foo foo;
+      ...
+      executor->Schedule([&] { Frobnicate(foo); })
+      ...
+    }
+    // BAD! The fact that the lambda makes use of a reference to `foo` and
+    // possibly `this` (if `Frobnicate` is a member function) may not be
+    // apparent on a cursory inspection. If the lambda is invoked after
+    // the function returns, that would be bad, because both `foo`
+    // and the enclosing object could have been destroyed.
+    ```
+    prefer to write:
+    ```
+    {
+      Foo foo;
+      ...
+      executor->Schedule([&foo] { Frobnicate(foo); })
+      ...
+    }
+    // BETTER - The compile will fail if `Frobnicate` is a member
+    // function, and it's clearer that `foo` is dangerously captured by
+    // reference.
+    ```
+- Use default capture by reference ([&]) only when the lifetime of the lambda is obviously shorter than any potential captures.
+
+- Use default capture by value ([=]) only as a means of binding a few variables for a short lambda, where the set of captured variables is obvious at a glance. Prefer not to write long or complex lambdas with default capture by value.
+
+- Use captures only to actually capture variables from the enclosing scope. Do not use captures with initializers to introduce new names, or to substantially change the meaning of an existing name. Instead, declare a new variable in the conventional way and then capture it, or avoid the lambda shorthand and define a function object explicitly.
+
+- See the section on [type deduction](#type-deduction) for guidance on specifying the parameter and return types.    
+    
+
+### Template metaprogramming
+Avoid complicated template programming.
+
+**Definition:**  
+Template metaprogramming refers to a family of techniques that exploit the fact that the C++ template instantiation mechanism is Turing complete and can be used to perform arbitrary compile-time computation in the type domain.
+
+**Pros:**  
+Template metaprogramming allows extremely flexible interfaces that are type safe and high performance. Facilities like [Google Test](https://code.google.com/p/googletest/), `std::tuple`, `std::function`, and Boost.Spirit would be impossible without it.
+
+**Cons:**  
+The techniques used in template metaprogramming are often obscure to anyone but language experts. Code that uses templates in complicated ways is often unreadable, and is hard to debug or maintain.
+
+Template metaprogramming often leads to extremely poor compile time error messages: even if an interface is simple, the complicated implementation details become visible when the user does something wrong.
+
+Template metaprogramming interferes with large scale refactoring by making the job of refactoring tools harder. First, the template code is expanded in multiple contexts, and it's hard to verify that the transformation makes sense in all of them. Second, some refactoring tools work with an AST that only represents the structure of the code after template expansion. It can be difficult to automatically work back to the original source construct that needs to be rewritten.
+
+**Decision:**  
+Template metaprogramming sometimes allows cleaner and easier-to-use interfaces than would be possible without it, but it's also often a temptation to be overly clever. It's best used in a small number of low level components where the extra maintenance burden is spread out over a large number of uses.
+
+Think twice before using template metaprogramming or other complicated template techniques; think about whether the average member of your team will be able to understand your code well enough to maintain it after you switch to another project, or whether a non-C++ programmer or someone casually browsing the code base will be able to understand the error messages or trace the flow of a function they want to call. If you're using recursive template instantiations or type lists or metafunctions or expression templates, or relying on SFINAE or on the sizeof trick for detecting function overload resolution, then there's a good chance you've gone too far.
+
+If you use template metaprogramming, you should expect to put considerable effort into minimizing and isolating the complexity. You should hide metaprogramming as an implementation detail whenever possible, so that user-facing headers are readable, and you should make sure that tricky code is especially well commented. You should carefully document how the code is used, and you should say something about what the "generated" code looks like. Pay extra attention to the error messages that the compiler emits when users make mistakes. The error messages are part of your user interface, and your code should be tweaked as necessary so that the error messages are understandable and actionable from a user point of view.
+
+### Boost
+Use only approved libraries from the Boost library collection.
+
+**Definition:**  
+The [Boost library collection](https://www.boost.org/) is a popular collection of peer-reviewed, free, open-source C++ libraries.
+
+**Pros:**  
+Boost code is generally very high-quality, is widely portable, and fills many important gaps in the C++ standard library, such as type traits and better binders.
+
+**Cons:**  
+Some Boost libraries encourage coding practices which can hamper readability, such as metaprogramming and other advanced template techniques, and an excessively "functional" style of programming.
+
+**Decision:**  
+In order to maintain a high level of readability for all contributors who might read and maintain code, we only allow an approved subset of Boost features. Currently, the following libraries are permitted:
+
+- [Call Traits](https://www.boost.org/libs/utility/call_traits.htm) from `boost/call_traits.hpp`
+
+- [Compressed Pair](https://www.boost.org/libs/utility/compressed_pair.htm) from `boost/compressed_pair.hpp`
+
+- [The Boost Graph Library (BGL)](https://www.boost.org/libs/graph/) from `boost/graph`, except serialization (`adj_list_serialize.hpp`) and parallel/distributed algorithms and data structures (`boost/graph/parallel/*` and `boost/graph/distributed/*`).
+
+- [Property Map](https://www.boost.org/libs/property_map/) from `boost/property_map`, except parallel/distributed property maps (`boost/property_map/parallel/*`).
+
+- [Iterator](https://www.boost.org/libs/iterator/) from `boost/iterator`
+
+- The part of [Polygon](https://www.boost.org/libs/polygon/) that deals with Voronoi diagram construction and doesn't depend on the rest of Polygon: `boost/polygon/voronoi_builder.hpp`, `boost/polygon/voronoi_diagram.hpp`, and `boost/polygon/voronoi_geometry_type.hpp`
+
+- [Bimap](https://www.boost.org/libs/bimap/) from `boost/bimap`
+
+- [Statistical Distributions and Functions](https://www.boost.org/libs/math/doc/html/dist.html) from `boost/math/distributions`
+
+- [Special Functions](https://www.boost.org/libs/math/doc/html/special.html) from `boost/math/special_functions`
+
+- [Root Finding Functions](https://www.boost.org/libs/math/doc/html/root_finding.html) from `boost/math/tools`
+
+- [Multi-index](https://www.boost.org/libs/multi_index/) from `boost/multi_index`
+
+- [Heap](https://www.boost.org/libs/heap/) from `boost/heap`
+
+- The flat containers from [Container](https://www.boost.org/libs/container/): `boost/container/flat_map`, and `boost/container/flat_set`
+
+- [Intrusive](https://www.boost.org/libs/intrusive/) from `boost/intrusive`.
+
+- [The `boost/sort` library](https://www.boost.org/libs/sort/).
+
+- [Preprocessor](https://www.boost.org/libs/preprocessor/) from `boost/preprocessor`.
+
+We are actively considering adding other Boost features to the list, so this list may be expanded in the future.
+
+### std::hash
+Do not define specializations of `std::hash`.
+
+**Definition:**  
+`std::hash<T>` is the function object that the C\++11 hash containers use to hash keys of type T, unless the user explicitly specifies a different hash function. For example, `std::unordered_map<int, std::string>` is a hash map that uses `std::hash<int>` to hash its keys, whereas `std::unordered_map<int, std::string, MyIntHash>` uses `MyIntHash`.
+
+`std::hash` is defined for all integral, floating-point, pointer, and enum types, as well as some standard library types such as `string` and `unique_ptr`. Users can enable it to work for their own types by defining specializations of it for those types.
+
+**Pros:**  
+`std::hash` is easy to use, and simplifies the code since you don't have to name it explicitly. Specializing std::hash is the standard way of specifying how to hash a type, so it's what outside resources will teach, and what new engineers will expect.
+
+**Cons:**  
+`std::hash` is hard to specialize. It requires a lot of boilerplate code, and more importantly, it combines responsibility for identifying the hash inputs with responsibility for executing the hashing algorithm itself. The type author has to be responsible for the former, but the latter requires expertise that a type author usually doesn't have, and shouldn't need. The stakes here are high because low-quality hash functions can be security vulnerabilities, due to the emergence of [hash flooding attacks](https://emboss.github.io/blog/2012/12/14/breaking-murmur-hash-flooding-dos-reloaded/).
+
+Even for experts, `std::hash` specializations are inordinately difficult to implement correctly for compound types, because the implementation cannot recursively call `std::hash` on data members. High-quality hash algorithms maintain large amounts of internal state, and reducing that state to the `size_t` bytes that `std::hash` returns is usually the slowest part of the computation, so it should not be done more than once.
+
+Due to exactly that issue, `std::hash` does not work with `std::pair` or `std::tuple`, and the language does not allow us to extend it to support them.
+
+**Decision:**  
+You can use `std::hash` with the types that it supports "out of the box", but do not specialize it to support additional types. If you need a hash table with a key type that `std::hash` does not support, consider using legacy hash containers (e.g., `hash_map`) for now; they use a different default hasher, which is unaffected by this prohibition.
+
+If you want to use the standard hash containers anyway, you will need to specify a custom hasher for the key type, e.g.,
+```
+std::unordered_map<MyKeyType, Value, MyKeyTypeHasher> my_map;
+```
+Consult with the type's owners to see if there is an existing hasher that you can use; otherwise work with them to provide one, or roll your own.
+
+We are planning to provide a hash function that can work with any type, using a new customization mechanism that doesn't have the drawbacks of `std::hash`.
