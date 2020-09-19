@@ -1,5 +1,6 @@
 # Google C++ Style Guide
 ---
+---
 
 ### Table of contents
 
@@ -71,7 +72,42 @@
     - [Enumerator Names](#enumerator-names)
     - [Macro Names](#macro-names)
     - [Exceptions to Naming Rules](#exceptions-to-naming-rules)
+- [Comments](#comments)
+    - [Comments Style](#comment-style)
+    - [File Comments](#file-comments)
+    - [Class Coments](#class-coments)
+    - [Function Comments](#function-comments)
+    - [Variable Comments](#variable-comments)
+    - [Implementation Comments](#implementation-comments)
+    - [Punctuation, Spelling, and Grammar](#punctuation-spelling-and-grammar)
+    - [TODO Comments](#todo-comments)
+- [Formatting](#formatting)
+    - [Line Length](#line-length)
+    - [Non-ASCII Characters](#non-ascii-characters)
+    - [Spaces vs. Tabs](#spaces-vs-tabs)
+    - [Function Declarations and Definitions](#function-declarations-and-definitions)
+    - [Lambda Expressions](#lambda-expressions)
+    - [Floating-point Literals](#floating-point-literals)
+    - [Function Calls](#function-calls)
+    - [Braced Initializer List Format](#braces-initializer-list-format)
+    - [Conditionals](#conditionals)
+    - [Loops and Switch Statements](#loops-and-switch-statements)
+    - [Pointer and Reference Expressions](#pointer-and-reference-expressions)
+    - [Boolean Expressions](#boolean-expressions)
+    - [Return Values](#return-values)
+    - [Variable and Array Initialization](#variable-and-array-initialization)
+    - [Preprocessor Directives](#preprocessor-directives)
+    - [Class Format](#class-format)
+    - [Constructor Initializer Lists](#constructor-initializer-lists)
+    - [Namespace Formatting](#namespace-formatting)
+    - [Horizontal Whitespace](#horizontal-whitespace)
+    - [Vertical Whitespace](#vertical-whitespace)
+- [Exceptions to the Rules](#exceptions-to-the-rules)
+    - [Existing Non-conformant Code](#existing-non-conformant-code)
+    - [Windows Code](#windows-code)
+- [Parting Words](#parting-words) 
 
+---
 ---
 ## Background
 C++ is one of the main development languages used by many of Google's open-source projects. As every C++ programmer knows, the language has many powerful features, but this power brings with it complexity, which in turn can make code more bug-prone and harder to read and maintain.
@@ -2063,14 +2099,660 @@ Please see the [description of macros](#preprocessor-macros); in general macros 
 ### Exceptions to Naming Rules
 If you are naming something that is analogous to an existing C or C++ entity then you can follow the existing naming convention scheme.
 
-`bigopen()`
-function name, follows form of `open()`
+`bigopen()` ->  function name, follows form of `open()`
 
-`uint`
-`typedef`
-bigpos
-struct or class, follows form of pos
-sparse_hash_map
-STL-like entity; follows STL naming conventions
-LONGLONG_MAX
-a constant, as in INT_MAX
+`uint` -> `typedef`
+
+`bigpos` -> `struct` or `class`, follows form of `pos`
+
+`sparse_hash_map` -> STL-like entity; follows STL naming conventions
+
+`LONGLONG_MAX` a constant, as in `INT_MAX`
+
+## Comments
+
+Comments are absolutely vital to keeping our code readable. The following rules describe what you should comment and where. But remember: while comments are very important, the best code is self-documenting. Giving sensible names to types and variables is much better than using obscure names that you must then explain through comments.
+
+When writing your comments, write for your audience: the next contributor who will need to understand your code. Be generous — the next one may be you!
+
+### Comment Style
+Use either the `//` or `/* */` syntax, as long as you are consistent.
+
+You can use either the `//` or the `/* */` syntax; however, `//` is much more common. Be consistent with how you comment and what style you use where.
+
+### File Comments
+Start each file with license boilerplate.
+
+File comments describe the contents of a file. If a file declares, implements, or tests exactly one abstraction that is documented by a comment at the point of declaration, file comments are not required. All other files must have file comments.
+
+#### Legal Notice and Author Line
+Every file should contain license boilerplate. Choose the appropriate boilerplate for the license used by the project (for example, Apache 2.0, BSD, LGPL, GPL).
+
+If you make significant changes to a file with an author line, consider deleting the author line. New files should usually not contain copyright notice or author line.
+
+#### File Contents
+If a `.h` declares multiple abstractions, the file-level comment should broadly describe the contents of the file, and how the abstractions are related. A 1 or 2 sentence file-level comment may be sufficient. The detailed documentation about individual abstractions belongs with those abstractions, not at the file level.
+
+Do not duplicate comments in both the `.h` and the `.cc`. Duplicated comments diverge.
+
+### Class Comments
+Every non-obvious class or struct declaration should have an accompanying comment that describes what it is for and how it should be used.
+
+```
+// Iterates over the contents of a GargantuanTable.
+// Example:
+//    GargantuanTableIterator* iter = table->NewIterator();
+//    for (iter->Seek("foo"); !iter->done(); iter->Next()) {
+//      process(iter->key(), iter->value());
+//    }
+//    delete iter;
+class GargantuanTableIterator {
+  ...
+};
+```
+
+The class comment should provide the reader with enough information to know how and when to use the class, as well as any additional considerations necessary to correctly use the class. Document the synchronization assumptions the class makes, if any. If an instance of the class can be accessed by multiple threads, take extra care to document the rules and invariants surrounding multithreaded use.
+
+The class comment is often a good place for a small example code snippet demonstrating a simple and focused usage of the class.
+
+When sufficiently separated (e.g., `.h` and `.cc` files), comments describing the use of the class should go together with its interface definition; comments about the class operation and implementation should accompany the implementation of the class's methods.
+
+### Function Comments
+Declaration comments describe use of the function (when it is non-obvious); comments at the definition of a function describe operation.
+
+#### Function Declarations
+Almost every function declaration should have comments immediately preceding it that describe what the function does and how to use it. These comments may be omitted only if the function is simple and obvious (e.g., simple accessors for obvious properties of the class). These comments should open with descriptive verbs in the indicative mood ("Opens the file") rather than verbs in the imperative ("Open the file"). The comment describes the function; it does not tell the function what to do. In general, these comments do not describe how the function performs its task. Instead, that should be left to comments in the function definition.
+
+Types of things to mention in comments at the function declaration:
+
+- What the inputs and outputs are.
+- For class member functions: whether the object remembers reference arguments beyond the duration of the method call, and whether it will free them or not.
+- If the function allocates memory that the caller must free.
+- Whether any of the arguments can be a null pointer.
+- If there are any performance implications of how a function is used.
+- If the function is re-entrant. What are its synchronization assumptions?
+
+Here is an example:
+```
+// Returns an iterator for this table.  It is the client's
+// responsibility to delete the iterator when it is done with it,
+// and it must not use the iterator once the GargantuanTable object
+// on which the iterator was created has been deleted.
+//
+// The iterator is initially positioned at the beginning of the table.
+//
+// This method is equivalent to:
+//    Iterator* iter = table->NewIterator();
+//    iter->Seek("");
+//    return iter;
+// If you are going to immediately seek to another place in the
+// returned iterator, it will be faster to use NewIterator()
+// and avoid the extra seek.
+Iterator* GetIterator() const;
+```
+However, do not be unnecessarily verbose or state the completely obvious.
+
+When documenting function overrides, focus on the specifics of the override itself, rather than repeating the comment from the overridden function. In many of these cases, the override needs no additional documentation and thus no comment is required.
+
+When commenting constructors and destructors, remember that the person reading your code knows what constructors and destructors are for, so comments that just say something like "destroys this object" are not useful. Document what constructors do with their arguments (for example, if they take ownership of pointers), and what cleanup the destructor does. If this is trivial, just skip the comment. It is quite common for destructors not to have a header comment.
+
+#### Function Definitions
+If there is anything tricky about how a function does its job, the function definition should have an explanatory comment. For example, in the definition comment you might describe any coding tricks you use, give an overview of the steps you go through, or explain why you chose to implement the function in the way you did rather than using a viable alternative. For instance, you might mention why it must acquire a lock for the first half of the function but why it is not needed for the second half.
+
+Note you should *not* just repeat the comments given with the function declaration, in the `.h` file or wherever. It's okay to recapitulate briefly what the function does, but the focus of the comments should be on how it does it.
+
+### Variable Comments
+In general the actual name of the variable should be descriptive enough to give a good idea of what the variable is used for. In certain cases, more comments are required.
+
+#### Class Data Members
+The purpose of each class data member (also called an instance variable or member variable) must be clear. If there are any invariants (special values, relationships between members, lifetime requirements) not clearly expressed by the type and name, they must be commented. However, if the type and name suffice (`int num_events_;`), no comment is needed.
+
+In particular, add comments to describe the existence and meaning of sentinel values, such as nullptr or -1, when they are not obvious. For example:
+```
+private:
+ // Used to bounds-check table accesses. -1 means
+ // that we don't yet know how many entries the table has.
+ int num_total_entries_;
+ ```
+ 
+ #### Global Variables
+All global variables should have a comment describing what they are, what they are used for, and (if unclear) why it needs to be global. For example:
+```
+// The total number of tests cases that we run through in this regression test.
+const int kNumTestCases = 6;
+```
+
+### Implementation Comments
+In your implementation you should have comments in tricky, non-obvious, interesting, or important parts of your code.
+
+#### Explanatory Comments
+Tricky or complicated code blocks should have comments before them. Example:
+```
+// Divide result by two, taking into account that x
+// contains the carry from the add.
+for (int i = 0; i < result->size(); ++i) {
+  x = (x << 8) + (*result)[i];
+  (*result)[i] = x >> 1;
+  x &= 1;
+}
+```
+
+
+#### Line-end Comments
+Also, lines that are non-obvious should get a comment at the end of the line. These end-of-line comments should be separated from the code by 2 spaces. Example:
+```
+// If we have enough memory, mmap the data portion too.
+mmap_budget = max<int64>(0, mmap_budget - index_->length());
+if (mmap_budget >= data_size_ && !MmapData(mmap_chunk_bytes, mlock))
+  return;  // Error already logged.
+ ```
+Note that there are both comments that describe what the code is doing, and comments that mention that an error has already been logged when the function returns.
+
+#### Function Argument Comments
+When the meaning of a function argument is nonobvious, consider one of the following remedies:
+
+- If the argument is a literal constant, and the same constant is used in multiple function calls in a way that tacitly assumes they're the same, you should use a named constant to make that constraint explicit, and to guarantee that it holds.
+
+- Consider changing the function signature to replace a bool argument with an enum argument. This will make the argument values self-describing.
+
+- For functions that have several configuration options, consider defining a single class or struct to hold all the options , and pass an instance of that. This approach has several advantages. Options are referenced by name at the call site, which clarifies their meaning. It also reduces function argument count, which makes function calls easier to read and write. As an added benefit, you don't have to change call sites when you add another option.
+
+- Replace large or complex nested expressions with named variables.
+
+- As a last resort, use comments to clarify argument meanings at the call site.
+
+Consider the following example:  
+**Bad code:**
+```
+// What are these arguments?
+const DecimalNumber product = CalculateProduct(values, 7, false, nullptr);
+```
+versus:
+```
+ProductOptions options;
+options.set_precision_decimals(7);
+options.set_use_cache(ProductOptions::kDontUseCache);
+const DecimalNumber product =
+    CalculateProduct(values, options, /*completion_callback=*/nullptr);
+```
+
+#### Don'ts
+Do not state the obvious. In particular, don't literally describe what code does, unless the behavior is nonobvious to a reader who understands C++ well. Instead, provide higher level comments that describe why the code does what it does, or make the code self describing.
+
+Compare this:  
+**Bad code:**  
+```
+// Find the element in the vector.  <-- Bad: obvious!
+auto iter = std::find(v.begin(), v.end(), element);
+if (iter != v.end()) {
+  Process(element);
+}
+```
+To this:
+```
+// Process "element" unless it was already processed.
+auto iter = std::find(v.begin(), v.end(), element);
+if (iter != v.end()) {
+  Process(element);
+}
+```
+Self-describing code doesn't need a comment. The comment from the example above would be obvious:
+```
+if (!IsAlreadyProcessed(element)) {
+  Process(element);
+}
+```
+
+### Punctuation, Spelling, and Grammar
+Pay attention to punctuation, spelling, and grammar; it is easier to read well-written comments than badly written ones.
+
+Comments should be as readable as narrative text, with proper capitalization and punctuation. In many cases, complete sentences are more readable than sentence fragments. Shorter comments, such as comments at the end of a line of code, can sometimes be less formal, but you should be consistent with your style.
+
+Although it can be frustrating to have a code reviewer point out that you are using a comma when you should be using a semicolon, it is very important that source code maintain a high level of clarity and readability. Proper punctuation, spelling, and grammar help with that goal.
+
+### TODO Comments
+Use `TODO` comments for code that is temporary, a short-term solution, or good-enough but not perfect.
+
+`TODO`s should include the string `TODO` in all caps, followed by the name, e-mail address, bug ID, or other identifier of the person or issue with the best context about the problem referenced by the `TODO`. The main purpose is to have a consistent `TODO` that can be searched to find out how to get more details upon request. A `TODO` is not a commitment that the person referenced will fix the problem. Thus when you create a `TODO` with a name, it is almost always your name that is given.
+
+```
+// TODO(kl@gmail.com): Use a "*" here for concatenation operator.
+// TODO(Zeke) change this to use relations.
+// TODO(bug 12345): remove the "Last visitors" feature.
+```
+If your `TODO` is of the form "At a future date do something" make sure that you either include a very specific date ("Fix by November 2005") or a very specific event ("Remove this code when all clients can handle XML responses.").
+
+
+## Formatting
+Coding style and formatting are pretty arbitrary, but a project is much easier to follow if everyone uses the same style. Individuals may not agree with every aspect of the formatting rules, and some of the rules may take some getting used to, but it is important that all project contributors follow the style rules so that they can all read and understand everyone's code easily.
+
+To help you format code correctly, we've created a [settings file for emacs](https://raw.githubusercontent.com/google/styleguide/gh-pages/google-c-style.el).
+
+### Line Length
+Each line of text in your code should be at most 80 characters long.
+
+We recognize that this rule is controversial, but so much existing code already adheres to it, and we feel that consistency is important.
+
+***Pros:***  
+Those who favor this rule argue that it is rude to force them to resize their windows and there is no need for anything longer. Some folks are used to having several code windows side-by-side, and thus don't have room to widen their windows in any case. People set up their work environment assuming a particular maximum window width, and 80 columns has been the traditional standard. Why change it?
+
+***Cons:***  
+Proponents of change argue that a wider line can make code more readable. The 80-column limit is an hidebound throwback to 1960s mainframes; modern equipment has wide screens that can easily show longer lines.
+
+***Decision:***  
+80 characters is the maximum.
+
+A line may exceed 80 characters if it is
+
+- a comment line which is not feasible to split without harming readability, ease of cut and paste or auto-linking -- e.g., if a line contains an example command or a literal URL longer than 80 characters.
+- a raw-string literal with content that exceeds 80 characters. Except for test code, such literals should appear near the top of a file.
+an include statement.
+- a [header guard](#the-define-guard)
+- a using-declaration
+ 
+### Non-ASCII Characters
+Non-ASCII characters should be rare, and must use UTF-8 formatting.
+
+You shouldn't hard-code user-facing text in source, even English, so use of non-ASCII characters should be rare. However, in certain cases it is appropriate to include such words in your code. For example, if your code parses data files from foreign sources, it may be appropriate to hard-code the non-ASCII string(s) used in those data files as delimiters. More commonly, unittest code (which does not need to be localized) might contain non-ASCII strings. In such cases, you should use UTF-8, since that is an encoding understood by most tools able to handle more than just ASCII.
+
+Hex encoding is also OK, and encouraged where it enhances readability — for example, `"\xEF\xBB\xBF"`, or, even more simply, `u8"\uFEFF"`, is the Unicode zero-width no-break space character, which would be invisible if included in the source as straight UTF-8.
+
+Use the u8 prefix to guarantee that a string literal containing `\uXXXX` escape sequences is encoded as UTF-8. Do not use it for strings containing non-ASCII characters encoded as UTF-8, because that will produce incorrect output if the compiler does not interpret the source file as UTF-8.
+
+You shouldn't use the C\++11 `char16_t` and `char32_t` character types, since they're for non-UTF-8 text. For similar reasons you also shouldn't use `wchar_t` (unless you're writing code that interacts with the Windows API, which uses `wchar_t` extensively).
+
+### Spaces vs. Tabs
+Use only spaces, and indent 2 spaces at a time.
+
+We use spaces for indentation. Do not use tabs in your code. You should set your editor to emit spaces when you hit the tab key.
+
+### Function Declarations and Definitions
+Return type on the same line as function name, parameters on the same line if they fit. Wrap parameter lists which do not fit on a single line as you would wrap arguments in a [function call](#function-calls).
+
+Functions look like this:
+```
+ReturnType ClassName::FunctionName(Type par_name1, Type par_name2) {
+  DoSomething();
+  ...
+}
+```
+If you have too much text to fit on one line:
+```
+ReturnType ClassName::ReallyLongFunctionName(Type par_name1, Type par_name2,
+                                             Type par_name3) {
+  DoSomething();
+  ...
+}
+```
+or if you cannot fit even the first parameter:
+```
+ReturnType LongClassName::ReallyReallyReallyLongFunctionName(
+    Type par_name1,  // 4 space indent
+    Type par_name2,
+    Type par_name3) {
+  DoSomething();  // 2 space indent
+  ...
+}
+```
+Some points to note:
+
+- Choose good parameter names.
+
+- A parameter name may be omitted only if the parameter is not used in the function's definition.
+
+- If you cannot fit the return type and the function name on a single line, break between them.
+
+- If you break after the return type of a function declaration or definition, do not indent.
+
+- The open parenthesis is always on the same line as the function name.
+
+- There is never a space between the function name and the open parenthesis.
+
+- There is never a space between the parentheses and the parameters.
+
+- The open curly brace is always on the end of the last line of the function declaration, not the start of the next line.
+
+- The close curly brace is either on the last line by itself or on the same line as the open curly brace.
+
+- There should be a space between the close parenthesis and the open curly brace.
+
+- All parameters should be aligned if possible.
+
+- Default indentation is 2 spaces.
+
+- Wrapped parameters have a 4 space indent.
+
+Unused parameters that are obvious from context may be omitted:
+```
+class Foo {
+ public:
+  Foo(const Foo&) = delete;
+  Foo& operator=(const Foo&) = delete;
+};
+```
+Unused parameters that might not be obvious should comment out the variable name in the function definition:
+```
+class Shape {
+ public:
+  virtual void Rotate(double radians) = 0;
+};
+
+class Circle : public Shape {
+ public:
+  void Rotate(double radians) override;
+};
+
+void Circle::Rotate(double /*radians*/) {}
+```
+```
+// Bad - if someone wants to implement later, it's not clear what the
+// variable means.
+void Circle::Rotate(double) {}
+```
+Attributes, and macros that expand to attributes, appear at the very beginning of the function declaration or definition, before the return type:
+```
+ABSL_MUST_USE_RESULT bool IsOk();
+```
+
+### Lambda Expressions
+Format parameters and bodies as for any other function, and capture lists like other comma-separated lists.
+
+For by-reference captures, do not leave a space between the ampersand (&) and the variable name.
+```
+int x = 0;
+auto x_plus_n = [&x](int n) -> int { return x + n; }
+```
+Short lambdas may be written inline as function arguments.
+```
+std::set<int> blacklist = {7, 8, 9};
+std::vector<int> digits = {3, 9, 1, 8, 4, 7, 1};
+digits.erase(std::remove_if(digits.begin(), digits.end(), [&blacklist](int i) {
+               return blacklist.find(i) != blacklist.end();
+             }),
+             digits.end());
+```
+
+### Floating-point Literals
+Floating-point literals should always have a radix point, with digits on both sides, even if they use exponential notation. Readability is improved if all floating-point literals take this familiar form, as this helps ensure that they are not mistaken for integer literals, and that the E/e of the exponential notation is not mistaken for a hexadecimal digit. It is fine to initialize a floating-point variable with an integer literal (assuming the variable type can exactly represent that integer), but note that a number in exponential notation is never an integer literal.
+**Bad code:**  
+```
+float f = 1.f;
+long double ld = -.5L;
+double d = 1248e6;
+```
+**Good code:**  
+```
+float f = 1.0f;
+float f2 = 1;   // Also OK
+long double ld = -0.5L;
+double d = 1248.0e6;
+```
+
+### Function Calls
+
+Either write the call all on a single line, wrap the arguments at the parenthesis, or start the arguments on a new line indented by four spaces and continue at that 4 space indent. In the absence of other considerations, use the minimum number of lines, including placing multiple arguments on each line where appropriate.
+
+Function calls have the following format:
+```
+bool result = DoSomething(argument1, argument2, argument3);
+```
+If the arguments do not all fit on one line, they should be broken up onto multiple lines, with each subsequent line aligned with the first argument. Do not add spaces after the open paren or before the close paren:
+```
+bool result = DoSomething(averyveryveryverylongargument1,
+                          argument2, argument3);
+```
+Arguments may optionally all be placed on subsequent lines with a four space indent:
+```
+if (...) {
+  ...
+  ...
+  if (...) {
+    bool result = DoSomething(
+        argument1, argument2,  // 4 space indent
+        argument3, argument4);
+    ...
+  }
+```
+Put multiple arguments on a single line to reduce the number of lines necessary for calling a function unless there is a specific readability problem. Some find that formatting with strictly one argument on each line is more readable and simplifies editing of the arguments. However, we prioritize for the reader over the ease of editing arguments, and most readability problems are better addressed with the following techniques.
+
+If having multiple arguments in a single line decreases readability due to the complexity or confusing nature of the expressions that make up some arguments, try creating variables that capture those arguments in a descriptive name:
+```
+int my_heuristic = scores[x] * y + bases[x];
+bool result = DoSomething(my_heuristic, x, y, z);
+```
+Or put the confusing argument on its own line with an explanatory comment:
+```
+bool result = DoSomething(scores[x] * y + bases[x],  // Score heuristic.
+                          x, y, z);
+```
+If there is still a case where one argument is significantly more readable on its own line, then put it on its own line. The decision should be specific to the argument which is made more readable rather than a general policy.
+
+Sometimes arguments form a structure that is important for readability. In those cases, feel free to format the arguments according to that structure:
+```
+// Transform the widget by a 3x3 matrix.
+my_widget.Transform(x1, x2, x3,
+                    y1, y2, y3,
+                    z1, z2, z3);
+```
+
+### Braced Initializer List Format
+Format a braced initializer list exactly like you would format a function call in its place.
+
+If the braced list follows a name (e.g., a type or variable name), format as if the {} were the parentheses of a function call with that name. If there is no name, assume a zero-length name.
+```
+// Examples of braced init list on a single line.
+return {foo, bar};
+functioncall({foo, bar});
+std::pair<int, int> p{foo, bar};
+
+// When you have to wrap.
+SomeFunction(
+    {"assume a zero-length name before {"},
+    some_other_function_parameter);
+SomeType variable{
+    some, other, values,
+    {"assume a zero-length name before {"},
+    SomeOtherType{
+        "Very long string requiring the surrounding breaks.",
+        some, other values},
+    SomeOtherType{"Slightly shorter string",
+                  some, other, values}};
+SomeType variable{
+    "This is too long to fit all in one line"};
+MyType m = {  // Here, you could also break before {.
+    superlongvariablename1,
+    superlongvariablename2,
+    {short, interior, list},
+    {interiorwrappinglist,
+     interiorwrappinglist2}};
+```
+
+### Conditionals
+The if and else keywords belong on separate lines. There should be a space between the if and the open parenthesis, and between the close parenthesis and the curly brace (if any), but no space between the parentheses and the condition.
+```
+if (condition) {  // no spaces inside parentheses
+  ...  // 2 space indent.
+} else if (...) {  // The else goes on the same line as the closing brace.
+  ...
+} else {
+  ...
+}
+```
+**Bad code:**  
+```
+if(condition) {   // Bad - space missing after IF.
+if ( condition ) { // Bad - space between the parentheses and the condition
+if (condition){   // Bad - space missing before {.
+if(condition){    // Doubly bad.
+```
+**Good code:**  
+```
+if (condition) {  // Good - proper space after IF and before {.
+```
+Short conditional statements may be written on one line if this enhances readability. You may use this only when the line is brief and the statement does not use the else clause.
+```
+if (x == kFoo) return new Foo();
+if (x == kBar) return new Bar();
+```
+This is not allowed when the if statement has an else:
+**Bad code:**  
+```
+// Not allowed - IF statement on one line when there is an ELSE clause
+if (x) DoThis();
+else DoThat();
+```
+In general, curly braces are not required for single-line statements, but they are allowed if you like them; conditional or loop statements with complex conditions or statements may be more readable with curly braces. Some projects require that an if must always have an accompanying brace.
+```
+if (condition)
+  DoSomething();  // 2 space indent.
+
+if (condition) {
+  DoSomething();  // 2 space indent.
+}
+```
+However, if one part of an if-else statement uses curly braces, the other part must too:
+**Bad code:**  
+```
+// Not allowed - curly on IF but not ELSE
+if (condition) {
+  foo;
+} else
+  bar;
+
+// Not allowed - curly on ELSE but not IF
+if (condition)
+  foo;
+else {
+  bar;
+}
+```
+**Good code:**
+```
+// Curly braces around both IF and ELSE required because
+// one of the clauses used braces.
+if (condition) {
+  foo;
+} else {
+  bar;
+}
+```
+
+### Loops and Switch Statements
+Switch statements may use braces for blocks. Annotate non-trivial fall-through between cases. Braces are optional for single-statement loops. Empty loop bodies should use either empty braces or `continue`.
+
+`case` blocks in `switch` statements can have curly braces or not, depending on your preference. If you do include curly braces they should be placed as shown below.
+
+If not conditional on an enumerated value, switch statements should always have a `default` case (in the case of an enumerated value, the compiler will warn you if any values are not handled). If the default case should never execute, treat this as an error. For example:
+```
+switch (var) {
+  case 0: {  // 2 space indent
+    ...      // 4 space indent
+    break;
+  }
+  case 1: {
+    ...
+    break;
+  }
+  default: {
+    assert(false);
+  }
+}
+```
+Fall-through from one case label to another must be annotated using the `ABSL_FALLTHROUGH_INTENDED;` macro (defined in `absl/base/macros.h`). `ABSL_FALLTHROUGH_INTENDED`; should be placed at a point of execution where a fall-through to the next case label occurs. A common exception is consecutive case labels without intervening code, in which case no annotation is needed.
+```
+switch (x) {
+  case 41:  // No annotation needed here.
+  case 43:
+    if (dont_be_picky) {
+      // Use this instead of or along with annotations in comments.
+      ABSL_FALLTHROUGH_INTENDED;
+    } else {
+      CloseButNoCigar();
+      break;
+    }
+  case 42:
+    DoSomethingSpecial();
+    ABSL_FALLTHROUGH_INTENDED;
+  default:
+    DoSomethingGeneric();
+    break;
+}
+```
+Braces are optional for single-statement loops.
+```
+for (int i = 0; i < kSomeNumber; ++i)
+  printf("I love you\n");
+
+for (int i = 0; i < kSomeNumber; ++i) {
+  printf("I take it back\n");
+}
+```
+Empty loop bodies should use either an empty pair of braces or continue with no braces, rather than a single semicolon.
+```
+while (condition) {
+  // Repeat test until it returns false.
+}
+for (int i = 0; i < kSomeNumber; ++i) {}  // Good - one newline is also OK.
+while (condition) continue;  // Good - continue indicates no logic.
+```
+**Bad code:***  
+```
+while (condition);  // Bad - looks like part of do/while loop.
+```
+
+### Pointer and Reference Expressions
+No spaces around period or arrow. Pointer operators do not have trailing spaces.
+
+The following are examples of correctly-formatted pointer and reference expressions:
+```
+x = *p;
+p = &x;
+x = r.y;
+x = r->y;
+```
+
+Note that:
+
+- There are no spaces around the period or arrow when accessing a member.
+- Pointer operators have no space after the `*` or `&`.
+
+When declaring a pointer variable or argument, you may place the asterisk adjacent to either the type or to the variable name:
+```
+// These are fine, space preceding.
+char *c;
+const std::string &str;
+
+// These are fine, space following.
+char* c;
+const std::string& str;
+```
+You should do this consistently within a single file, so, when modifying an existing file, use the style in that file.
+
+It is allowed (if unusual) to declare multiple variables in the same declaration, but it is disallowed if any of those have pointer or reference decorations. Such declarations are easily misread.
+```
+// Fine if helpful for readability.
+int x, y;
+```
+**Bad code:**
+```
+int x, *y;  // Disallowed - no & or * in multiple declaration
+char * c;  // Bad - spaces on both sides of *
+const std::string & str;  // Bad - spaces on both sides of &
+```
+
+### Boolean Expressions
+When you have a boolean expression that is longer than the standard [line length](#line-length), be consistent in how you break up the lines.
+
+In this example, the logical AND operator is always at the end of the lines:
+```
+if (this_one_thing > this_other_thing &&
+    a_third_thing == a_fourth_thing &&
+    yet_another && last_one) {
+  ...
+}
+```
+Note that when the code wraps in this example, both of the `&&` logical AND operators are at the end of the line. This is more common in Google code, though wrapping all operators at the beginning of the line is also allowed. Feel free to insert extra parentheses judiciously because they can be very helpful in increasing readability when used appropriately, but be careful about overuse. Also note that you should always use the punctuation operators, such as `&&` and `~`, rather than the word operators, such as and and compl.
+
+### 
+
+
