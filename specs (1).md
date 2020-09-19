@@ -16,6 +16,7 @@
     - [Unnamed Namespaces and Static Variables](#unnamed-namespaces-and-static-variables)
     - [Nonmember, Static Member, and Global Functions](#nonmember-static-member-and-global-functions)
     - [Local variables](#local-variables)
+    - [Static and Global Variables](#static-and-global-variables)
 
 ---
 ## Background
@@ -321,4 +322,122 @@ Nonmember and static member functions may make more sense as members of a new cl
 
 Sometimes it is useful to define a function not bound to a class instance. Such a function can be either a static member or a nonmember function. Nonmember functions should not depend on external variables, and should nearly always exist in a namespace. Do not create classes only to group static members; this is no different than just giving the names a common prefix, and such grouping is usually unnecessary anyway.
 
-If you define a nonmember function and it is only needed in its .cc file, use internal linkage to limit its scope.
+If you define a nonmember function and it is only needed in its `.cc` file, use [internal linkage](#unnamed-namespaces-and-static-variables) to limit its scope.
+
+### Local Variables
+
+Place a function's variables in the narrowest scope possible, and initialize variables in the declaration.
+
+C\++ allows you to declare variables anywhere in a function. We encourage you to declare them in as local a scope as possible, and as close to the first use as possible. This makes it easier for the reader to find the declaration and see what type the variable is and what it was initialized to. In particular, initialization should be used instead of declaration and assignment, e.g.,:
+```
+int i;
+i = f();      // Bad -- initialization separate from declaration.
+int j = g();  // Good -- declaration has initialization.
+std::vector<int> v;
+v.push_back(1);  // Prefer initializing using brace initialization.
+v.push_back(2);
+std::vector<int> v = {1, 2};  // Good -- v starts initialized.
+```
+Variables needed for if, while and for statements should normally be declared within those statements, so that such variables are confined to those scopes. E.g.:
+```
+while (const char* p = strchr(str, '/')) str = p + 1;
+```
+There is one caveat: if the variable is an object, its constructor is invoked every time it enters scope and is created, and its destructor is invoked every time it goes out of scope.
+```
+// Inefficient implementation:
+for (int i = 0; i < 1000000; ++i) {
+  Foo f;  // My ctor and dtor get called 1000000 times each.
+  f.DoSomething(i);
+}
+```
+It may be more efficient to declare such a variable used in a loop outside that loop:
+```
+Foo f;  // My ctor and dtor get called once each.
+for (int i = 0; i < 1000000; ++i) {
+  f.DoSomething(i);
+}
+```
+
+### Static and Global Variables
+Objects with [static storage duration](https://en.cppreference.com/w/cpp/language/storage_duration#Storage_duration) are forbidden unless they are [trivially destructible](https://en.cppreference.com/w/cpp/types/is_destructible). Informally this means that the destructor does not do anything, even taking member and base destructors into account. More formally it means that the type has no user-defined or virtual destructor and that all bases and non-static members are trivially destructible. Static function-local variables may use dynamic initialization. Use of dynamic initialization for static class member variables or variables at namespace scope is discouraged, but allowed in limited circumstances; see below for details.
+
+As a rule of thumb: a global variable satisfies these requirements if its declaration, considered in isolation, could be `constexpr`.
+
+Every object has a *storage duration*, which correlates with its lifetime. Objects with static storage duration live from the point of their initialization until the end of the program. Such objects appear as variables at namespace scope ("global variables"), as static data members of classes, or as function-local variables that are declared with the `static` specifier. Function-local static variables are initialized when control first passes through their declaration; all other objects with static storage duration are initialized as part of program start-up. All objects with static storage duration are destroyed at program exit (which happens before unjoined threads are terminated).
+
+Initialization may be *dynamic*, which means that something non-trivial happens during initialization. (For example, consider a constructor that allocates memory, or a variable that is initialized with the current process ID.) The other kind of initialization is *static* initialization. The two aren't quite opposites, though: static initialization *always* happens to objects with static storage duration (initializing the object either to a given constant or to a representation consisting of all bytes set to zero), whereas dynamic initialization happens after that, if required.
+
+Global and static variables are very useful for a large number of applications: named constants, auxiliary data structures internal to some translation unit, command-line flags, logging, registration mechanisms, background infrastructure, etc.
+
+Global and static variables that use dynamic initialization or have non-trivial destructors create complexity that can easily lead to hard-to-find bugs. Dynamic initialization is not ordered across translation units, and neither is destruction (except that destruction happens in reverse order of initialization). When one initialization refers to another variable with static storage duration, it is possible that this causes an object to be accessed before its lifetime has begun (or after its lifetime has ended). Moreover, when a program starts threads that are not joined at exit, those threads may attempt to access objects after their lifetime has ended if their destructor has already run.
+
+#### Decision on destruction
+When destructors are trivial, their execution is not subject to ordering at all (they are effectively not "run"); otherwise we are exposed to the risk of accessing objects after the end of their lifetime. Therefore, we only allow objects with static storage duration if they are trivially destructible. Fundamental types (like pointers and `int`) are trivially destructible, as are arrays of trivially destructible types. Note that variables marked with constexpr are trivially destructible.
+
+```
+const int kNum = 10;  // allowed
+
+struct X { int n; };
+const X kX[] = {{1}, {2}, {3}};  // allowed
+
+void foo() {
+  static const char* const kMessages[] = {"hello", "world"};  // allowed
+}
+
+// allowed: constexpr guarantees trivial destructor
+constexpr std::array<int, 3> kArray = {{1, 2, 3}};
+// bad: non-trivial destructor
+const std::string kFoo = "foo";
+
+// bad for the same reason, even though kBar is a reference (the
+// rule also applies to lifetime-extended temporary objects)
+const std::string& kBar = StrCat("a", "b", "c");
+
+void bar() {
+  // bad: non-trivial destructor
+  static std::map<int, int> kData = {{1, 0}, {2, 0}, {3, 0}};
+}
+```
+Note that references are not objects, and thus they are not subject to the constraints on destructibility. The constraint on dynamic initialization still applies, though. In particular, a function-local static reference of the form `static T& t = *new T;` is allowed.
+
+#### Decision on initialization
+Initialization is a more complex topic. This is because we must not only consider whether class constructors execute, but we must also consider the evaluation of the initializer:
+```
+int n = 5;    // fine
+int m = f();  // ? (depends on f)
+Foo x;        // ? (depends on Foo::Foo)
+Bar y = g();  // ? (depends on g and on Bar::Bar)
+```
+
+All but the first statement expose us to indeterminate initialization ordering.
+
+The concept we are looking for is called *constant initialization* in the formal language of the C++ standard. It means that the initializing expression is a constant expression, and if the object is initialized by a constructor call, then the constructor must be specified as `constexpr`, too:
+```
+struct Foo { constexpr Foo(int) {} };
+
+int n = 5;  // fine, 5 is a constant expression
+Foo x(2);   // fine, 2 is a constant expression and the chosen constructor is constexpr
+Foo a[] = { Foo(1), Foo(2), Foo(3) };  // fine
+```
+
+Constant initialization is always allowed. Constant initialization of static storage duration variables should be marked with `constexpr` or where possible the [ABSL_CONST_INIT](https://github.com/abseil/abseil-cpp/blob/03c1513538584f4a04d666be5eb469e3979febba/absl/base/attributes.h#L540) attribute. Any non-local static storage duration variable that is not so marked should be presumed to have dynamic initialization, and reviewed very carefully.
+
+By contrast, the following initializations are problematic:
+```
+// Some declarations used below.
+time_t time(time_t*);      // not constexpr!
+int f();                   // not constexpr!
+struct Bar { Bar() {} };
+
+// Problematic initializations.
+time_t m = time(nullptr);  // initializing expression not a constant expression
+Foo y(f());                // ditto
+Bar b;                     // chosen constructor Bar::Bar() not constexpr
+```
+
+Dynamic initialization of nonlocal variables is discouraged, and in general it is forbidden. However, we do permit it if no aspect of the program depends on the sequencing of this initialization with respect to all other initializations. Under those restrictions, the ordering of the initialization does not make an observable difference. For example:
+```
+int p = getpid();  // allowed, as long as no other static variable
+                   // uses p in its own initialization
+```
+Dynamic initialization of static local variables is allowed (and common).
