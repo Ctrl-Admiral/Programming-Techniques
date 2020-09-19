@@ -218,10 +218,54 @@ inline namespace inner {
 }  // namespace inner
 }  // namespace outer
 ```
-The expressions outer::inner::foo() and outer::foo() are interchangeable. Inline namespaces are primarily intended for ABI compatibility across versions.
+The expressions `outer::inner::foo()` and `outer::foo()` are interchangeable. Inline namespaces are primarily intended for ABI compatibility across versions.
 
 Namespaces can be confusing, because they complicate the mechanics of figuring out what definition a name refers to.
 
 Inline namespaces, in particular, can be confusing because names aren't actually restricted to the namespace where they are declared. They are only useful as part of some larger versioning policy.
 
 In some contexts, it's necessary to repeatedly refer to symbols by their fully-qualified names. For deeply-nested namespaces, this can add a lot of clutter.
+
+Namespaces should be used as follows:
+
+- Follow the rules on [Namespace Names](#namespace-names).
+- Terminate namespaces with comments as shown in the given examples.
+- Namespaces wrap the entire source file after includes, [gflags](https://gflags.github.io/gflags/) definitions/declarations and forward declarations of classes from other namespaces.
+
+```
+// In the .h file
+namespace mynamespace {
+
+// All declarations are within the namespace scope.
+// Notice the lack of indentation.
+class MyClass {
+ public:
+  ...
+  void Foo();
+};
+
+}  // namespace mynamespace
+// In the .cc file
+namespace mynamespace {
+
+// Definition of functions is within scope of the namespace.
+void MyClass::Foo() {
+  ...
+}
+
+}  // namespace mynamespace
+```
+More complex `.cc` files might have additional details, like flags or using-declarations.
+```
+#include "a.h"
+
+ABSL_FLAG(bool, someflag, false, "dummy flag");
+
+namespace mynamespace {
+
+using ::foo::Bar;
+
+...code for mynamespace...    // Code goes against the left margin.
+
+}  // namespace mynamespace
+```
