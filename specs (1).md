@@ -18,6 +18,10 @@
     - [Local variables](#local-variables)
     - [Static and Global Variables](#static-and-global-variables)
     - [thread_local Variables](#thread_local-variables)
+- [Classes](#classes)
+    - [Doing Work in Constructors](#doing-work-in-constructors)
+    - [Implicit Conversions](#implicit-conversions)
+    - [Copyable and Movable Types](#copyable-and-movable-types)
 
 ---
 ## Background
@@ -471,11 +475,17 @@ Such a variable is actually a collection of objects, so that when different thre
 `thread_local` variable instances are destroyed when their thread terminates, so they do not have the destruction-order issues of static variables.
 
 - Thread-local data is inherently safe from races (because only one thread can ordinarily access it), which makes `thread_local` useful for concurrent programming.
+
 - `thread_local` is the only standard-supported way of creating thread-local data.
+
 - Accessing a `thread_local` variable may trigger execution of an unpredictable and uncontrollable amount of other code.
+
 - `thread_local` variables are effectively global variables, and have all the drawbacks of global variables other than lack of thread-safety.
+
 - The memory consumed by a `thread_local` variable scales with the number of running threads (in the worst case), which can be quite large in a program.
+
 - An ordinary class member cannot be `thread_local`.
+
 - `thread_local` may not be as efficient as certain compiler intrinsics.
 
 `thread_local` variables inside a function have no safety concerns, so they can be used without restriction. Note that you can use a function-scope `thread_local` to simulate a class- or namespace-scope `thread_local` by defining a function or static method that exposes it:
@@ -491,3 +501,70 @@ ABSL_CONST_INIT thread_local Foo foo = ...;
 ```
 
 `thread_local` should be preferred over other mechanisms for defining thread-local data.
+
+## Classes
+Classes are the fundamental unit of code in C++. Naturally, we use them extensively. This section lists the main dos and don'ts you should follow when writing a class.
+
+### Doing Work in Constructors
+
+Avoid virtual method calls in constructors, and avoid initialization that can fail if you can't signal an error.
+
+It is possible to perform arbitrary initialization in the body of the constructor.
+
+- No need to worry about whether the class has been initialized or not.
+
+- Objects that are fully initialized by constructor call can be const and may also be easier to use with standard containers or algorithms.
+
+- If the work calls virtual functions, these calls will not get dispatched to the subclass implementations. Future modification to your class can quietly introduce this problem even if your class is not currently subclassed, causing much confusion.
+
+- There is no easy way for constructors to signal errors, short of crashing the program (not always appropriate) or using exceptions (which are [forbidden](#exceptions)).
+
+- If the work fails, we now have an object whose initialization code failed, so it may be an unusual state requiring a `bool IsValid()` state checking mechanism (or similar) which is easy to forget to call.
+
+- You cannot take the address of a constructor, so whatever work is done in the constructor cannot easily be handed off to, for example, another thread.
+
+Constructors should never call virtual functions. If appropriate for your code , terminating the program may be an appropriate error handling response. Otherwise, consider a factory function or `Init()` method as described in [TotW #42](https://abseil.io/tips/42). Avoid `Init()` methods on objects with no other states that affect which public methods may be called (semi-constructed objects of this form are particularly hard to work with correctly).
+
+### Implicit Conversions
+Do not define implicit conversions. Use the `explicit` keyword for conversion operators and single-argument constructors.
+
+Implicit conversions allow an object of one type (called the *source* type) to be used where a different type (called the *destination* type) is expected, such as when passing an `int` argument to a function that takes a `double` parameter.
+
+In addition to the implicit conversions defined by the language, users can define their own, by adding appropriate members to the class definition of the source or destination type. An implicit conversion in the source type is defined by a type conversion operator named after the destination type (e.g., `operator bool()`). An implicit conversion in the destination type is defined by a constructor that can take the source type as its only argument (or only argument with no default value).
+
+The `explicit` keyword can be applied to a constructor or (since C\++11) a conversion operator, to ensure that it can only be used when the destination type is explicit at the point of use, e.g., with a cast. This applies not only to implicit conversions, but to C++11's list initialization syntax:
+```
+class Foo {
+  explicit Foo(int x, double y);
+  ...
+};
+
+void Func(Foo f);
+
+Func({42, 3.14});  // Error
+```
+This kind of code isn't technically an implicit conversion, but the language treats it as one as far as `explicit` is concerned.
+
+- Implicit conversions can make a type more usable and expressive by eliminating the need to explicitly name a type when it's obvious.
+
+- Implicit conversions can be a simpler alternative to overloading, such as when a single function with a `string_view` parameter takes the place of separate overloads for `std::string` and `const char*`.
+
+- List initialization syntax is a concise and expressive way of initializing objects.
+
+- Implicit conversions can hide type-mismatch bugs, where the destination type does not match the user's expectation, or the user is unaware that any conversion will take place.
+
+- Implicit conversions can make code harder to read, particularly in the presence of overloading, by making it less obvious what code is actually getting called.
+
+- Constructors that take a single argument may accidentally be usable as implicit type conversions, even if they are not intended to do so.
+
+- When a single-argument constructor is not marked `explicit`, there's no reliable way to tell whether it's intended to define an implicit conversion, or the author simply forgot to mark it.
+
+- Implicit conversions can lead to call-site ambiguities, especially when there are bidirectional implicit conversions. This can be caused either by having two types that both provide an implicit conversion, or by a single type that has both an implicit constructor and an implicit type conversion operator.
+
+- List initialization can suffer from the same problems if the destination type is implicit, particularly if the list has only a single element.
+
+Type conversion operators, and constructors that are callable with a single argument, must be marked `explicit` in the class definition. As an exception, copy and move constructors should not be `explicit`, since they do not perform type conversion.
+
+Implicit conversions can sometimes be necessary and appropriate for types that are designed to be interchangeable, for example when objects of two types are just different representations of the same underlying value. In that case, contact your project leads to request a waiver of this rule.
+
+Constructors that cannot be called with a single argument may omit `explicit`. Constructors that take a single `std::initializer_list` parameter should also omit `explicit`, in order to support copy-initialization (e.g., `MyType m = {1, 2};`).
