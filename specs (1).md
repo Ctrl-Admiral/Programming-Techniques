@@ -717,8 +717,22 @@ Define operators only on your own types. More precisely, define them in the same
 
 Prefer to define non-modifying binary operators as non-member functions. If a binary operator is defined as a class member, implicit conversions will apply to the right-hand argument, but not the left-hand one. It will confuse your users if `a < b` compiles but `b < a` doesn't.
 
-Don't go out of your way to avoid defining operator overloads. For example, prefer to define ==, =, and <<, rather than `Equals()`, `CopyFrom()`, and `PrintTo()`. Conversely, don't define operator overloads just because other libraries expect them. For example, if your type doesn't have a natural ordering, but you want to store it in a `std::set`, use a custom comparator rather than overloading <.
+Don't go out of your way to avoid defining operator overloads. For example, prefer to define ==, =, and <<, rather than `Equals()`, `CopyFrom()`, and `PrintTo()`. Conversely, don't define operator overloads just because other libraries expect them. For example, if your type doesn't have a natural ordering, but you want to store it in a `std::set`, use a custom comparator rather than overloading `<`.
 
 Do not overload &&, ||, , (comma), or unary &. Do not overload `operator""`, i.e., do not introduce user-defined literals. Do not use any such literals provided by others (including the standard library).
 
-Type conversion operators are covered in the section on implicit conversions. The = operator is covered in the section on copy constructors. Overloading << for use with streams is covered in the section on streams. See also the rules on function overloading, which apply to operator overloading as well.
+Type conversion operators are covered in the section on [implicit conversions](#implicit-conversions). The = operator is covered in the section on [copy constructors](#copy-constructors). Overloading << for use with streams is covered in the section on [streams](#streams). See also the rules on [function overloading](#function-overloading), which apply to operator overloading as well.
+
+### Access Control
+Make classes' data members `private`, unless they are [constants](#constant-names). This simplifies reasoning about invariants, at the cost of some easy boilerplate in the form of accessors (usually `const`) if necessary.
+
+For technical reasons, we allow data members of a test fixture class defined in a `.cc` file to be `protected` when using [Google Test](https://github.com/google/googletest)). If a test fixture class is defined outside of the `.cc` file it is used in, for example in a `.h` file, make data members private.
+
+### Declaration Order
+Group similar declarations together, placing public parts earlier.
+
+A class definition should usually start with a `public:` section, followed by `protected:`, then `private:`. Omit sections that would be empty.
+
+Within each section, generally prefer grouping similar kinds of declarations together, and generally prefer the following order: types (including `typedef`, `using`, and nested structs and classes), constants, factory functions, constructors and assignment operators, destructor, all other methods, data members.
+
+Do not put large method definitions inline in the class definition. Usually, only trivial or performance-critical, and very short, methods may be defined inline. See [Inline Functions](#inline-functions) for more details.
