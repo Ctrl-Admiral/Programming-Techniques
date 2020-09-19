@@ -25,6 +25,7 @@
     - [Copyable and Movable Types](#copyable-and-movable-types)
     - [Struct vs. Classes](#structs-vs-classes)
     - [Structs vs. Pairs and Tuples](#structs-vs-pairs-and-tuples)
+    - [Inheritance](#inheritance)
     - [Operator Overloading](#operator-overloading)
     - [Access Control](#access-control)
     - [Declaration Order](#seclaration-order)
