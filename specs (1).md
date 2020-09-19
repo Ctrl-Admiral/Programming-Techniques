@@ -22,7 +22,7 @@
     - [Doing Work in Constructors](#doing-work-in-constructors)
     - [Implicit Conversions](#implicit-conversions)
     - [Copyable and Movable Types](#copyable-and-movable-types)
-    - [Struct vs. Classes](#struct-vs-classes)
+    - [Struct vs. Classes](#struct-vs.-classes)
 
 ---
 ## Background
